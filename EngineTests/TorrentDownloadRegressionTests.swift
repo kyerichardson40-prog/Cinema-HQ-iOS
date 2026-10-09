@@ -119,6 +119,26 @@ final class TorrentDownloadRegressionTests: XCTestCase {
         XCTAssertEqual(written, payload)
     }
 
+    func testVerifiedPieceReturnsTheFinalBuffer() async {
+        let payload = Data(repeating: 0xAC, count: 32768)
+        let info = makeTorrentInfo(pieceLength: payload.count, totalSize: Int64(payload.count),
+                                   pieceHashes: Data(Insecure.SHA1.hash(data: payload)))
+        let pieces = PieceManager(info: info)
+        await pieces.startPiece(0)
+        await pieces.addBlock(pieceIndex: 0, offset: 16384, data: Data(payload.suffix(16384)))
+        let stale = await pieces.getPieceBuffer(0)
+        await pieces.addBlock(pieceIndex: 0, offset: 0, data: Data(payload.prefix(16384)))
+        let verified = await pieces.takeVerifiedPiece(0)
+        XCTAssertEqual(verified, payload)
+        XCTAssertNotEqual(stale, verified)
+        let duplicate = await pieces.takeVerifiedPiece(0)
+        XCTAssertNil(duplicate)
+    }
+
+    func testRepeatedPeerDownloadsReachDiskUnchanged() async throws {
+        for _ in 0..<10 { try await testDownloadsBeyondRequestPipelineFromLocalSeeder() }
+    }
+
 }
 
 private final class LocalTestSeeder: ChannelInboundHandler {
