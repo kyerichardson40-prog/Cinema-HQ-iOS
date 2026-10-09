@@ -1,0 +1,19 @@
+name: CinemaHQ
+options:
+  bundleIdPrefix: app.cinemahq
+settings:
+  base:
+    IPHONEOS_DEPLOYMENT_TARGET: '16.0'
+    SWIFT_VERSION: '5.0'
+    CODE_SIGNING_ALLOWED: 'NO'
+targets:
+  CinemaHQ:
+    type: application
+    platform: iOS
+    sources: [CinemaHQ]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.cinemahq.ios
+        GENERATE_INFOPLIST_FILE: 'YES'
+        INFOPLIST_KEY_UILaunchScreen_Generation: 'YES'
+        TARGETED_DEVICE_FAMILY: '1,2'
