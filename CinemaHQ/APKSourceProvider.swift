@@ -153,44 +153,9 @@ struct APKSourceView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(item?.title ?? "Find video sources") {
-                    Picker("Provider", selection: $provider) {
-                        ForEach(APKProvider.allCases) { Text($0.rawValue).tag($0) }
-                    }
-                    TextField("IMDb ID", text: $imdbID)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    Toggle("TV episode", isOn: $series)
-                    if series {
-                        Stepper("Season \(season)", value: $season, in: 1...100)
-                        Stepper("Episode \(episode)", value: $episode, in: 1...1000)
-                    }
-                    Button(loading ? "Finding sources…" : "Find sources") { Task { await search() } }
-                        .disabled(loading || imdbID.isEmpty)
-                    if loading { ProgressView() }
-                    if let error { Text(error).foregroundStyle(.secondary) }
-                }
-                Section("Available sources") {
-                    ForEach(streams) { stream in
-                        Button {
-                            if let url = stream.directURL { playback = PlaybackLink(url: url) }
-                            else { selectedTorrent = stream }
-                        } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(stream.label).font(.headline)
-                                Text(stream.details).font(.caption).foregroundStyle(.secondary)
-                                Label(stream.directURL == nil ? "Download and play" : "Play video",
-                                      systemImage: stream.directURL == nil ? "arrow.down.circle" : "play.circle")
-                                    .font(.caption)
-                            }
-                        }
-                    }
-                }
-                Section("About sources") {
-                    Text("These providers are referenced by the Android APK. Results and availability are controlled by each provider.")
-                    Text("Torrent videos must download completely. MP4, M4V and MOV files can be played; other formats are not supported yet.")
-                    Text("Only play videos you have permission to access. Peers can see your IP address while connected.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
+                sourceControls
+                sourceResults
+                sourceInformation
             }
             .navigationTitle("Video sources")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
@@ -217,6 +182,50 @@ struct APKSourceView: View {
                 catch { self.error = "Could not look up the IMDb ID. You can enter it here." }
             }
         }
+    }
+    private var sourceControls: some View {
+        Section(item?.title ?? "Find video sources") {
+                    Picker("Provider", selection: $provider) {
+                        ForEach(APKProvider.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    TextField("IMDb ID", text: $imdbID)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    Toggle("TV episode", isOn: $series)
+                    if series {
+                        Stepper("Season \(season)", value: $season, in: 1...100)
+                        Stepper("Episode \(episode)", value: $episode, in: 1...1000)
+                    }
+                    Button(loading ? "Finding sources…" : "Find sources") { Task { await search() } }
+                        .disabled(loading || imdbID.isEmpty)
+                    if loading { ProgressView() }
+                    if let error { Text(error).foregroundStyle(.secondary) }
+                }
+    }
+    private var sourceResults: some View {
+        Section("Available sources") {
+                    ForEach(streams) { stream in
+                        Button {
+                            if let url = stream.directURL { playback = PlaybackLink(url: url) }
+                            else { selectedTorrent = stream }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(stream.label).font(.headline)
+                                Text(stream.details).font(.caption).foregroundStyle(.secondary)
+                                Label(stream.directURL == nil ? "Download and play" : "Play video",
+                                      systemImage: stream.directURL == nil ? "arrow.down.circle" : "play.circle")
+                                    .font(.caption)
+                            }
+                        }
+                    }
+                }
+    }
+    private var sourceInformation: some View {
+        Section("About sources") {
+                    Text("These providers are referenced by the Android APK. Results and availability are controlled by each provider.")
+                    Text("Torrent videos must download completely. MP4, M4V and MOV files can be played; other formats are not supported yet.")
+                    Text("Only play videos you have permission to access. Peers can see your IP address while connected.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
     }
     private func search() async {
         let requestID = UUID()
