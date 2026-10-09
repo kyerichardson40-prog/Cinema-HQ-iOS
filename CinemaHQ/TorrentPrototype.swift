@@ -3,7 +3,15 @@ import SwiftTorrent
 import CryptoKit
 
 struct TorrentPrototypeView: View {
-    @StateObject private var download = TorrentPrototype()
+    let source: FreeMovieSource
+    let libraryPlayback: Bool
+    @StateObject private var download: TorrentPrototype
+
+    init(source: FreeMovieSource = FreeMovieProvider.sources[0], libraryPlayback: Bool = false) {
+        self.source = source
+        self.libraryPlayback = libraryPlayback
+        _download = StateObject(wrappedValue: TorrentPrototype(source: source))
+    }
     @State private var playing = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -11,9 +19,9 @@ struct TorrentPrototypeView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Big Buck Bunny") {
-                    Text("Torrent playback test").font(.headline)
-                    Text("Download this Creative Commons video from peers, then play it on your iPhone. About 264 MB. Keep the app open; Wi-Fi is recommended.")
+                Section(source.title) {
+                    Text(libraryPlayback ? "Free film • WebTorrent" : "Torrent playback test").font(.headline)
+                    Text("Download this freely licensed video from peers, then play it on your iPhone. About \(source.sizeMB) MB. Keep the app open; Wi-Fi is recommended.")
                     Text(download.message).foregroundStyle(.secondary)
                     if download.running {
                         ProgressView(value: download.progress)
@@ -22,24 +30,26 @@ struct TorrentPrototypeView: View {
                         Button("Cancel", role: .destructive) { download.cancel() }
                     } else if download.video != nil {
                         Button("Play downloaded video") { playing = true }
-                        Button("Delete test download", role: .destructive) { download.clear() }
+                        Button("Delete download", role: .destructive) { download.clear() }
                     } else {
-                        Button("Download test video") { download.start() }
+                        Button(libraryPlayback ? "Download and play" : "Download test video") { download.start() }
                     }
                 }
-                Section("About this test") {
-                    Text("This prototype downloads the complete video and verifies its pieces before playback. It does not search movie torrents or stream partially downloaded files.")
+                Section(libraryPlayback ? "Source and credits" : "About this test") {
+                    Text("The complete video is downloaded and verified before playback.")
                     Text("Peers can see your IP address while connected.")
                         .font(.footnote).foregroundStyle(.secondary)
-                    Link("Big Buck Bunny • Blender Foundation • CC BY 3.0",
-                         destination: URL(string: "https://peach.blender.org/about/")!)
-                    Link("Test torrent from WebTorrent",
+                    Link("\(source.title) • Blender Foundation • Film credits and licence",
+                         destination: source.creditURL)
+                    Link("Video source: WebTorrent",
                          destination: URL(string: "https://webtorrent.io/free-torrents")!)
-                    Link("Torrent engine: SwiftTorrent (MIT)",
-                         destination: URL(string: "https://github.com/warppipe/swift-torrent")!)
+                    if !libraryPlayback {
+                        Link("Torrent engine: SwiftTorrent (MIT)",
+                             destination: URL(string: "https://github.com/warppipe/swift-torrent")!)
+                    }
                 }
             }
-            .navigationTitle("Torrent Test")
+            .navigationTitle(libraryPlayback ? source.title : "Torrent Test")
             .toolbar { ToolbarItem(placement: .confirmationAction) {
                 Button("Done") { download.cancel(); dismiss() }
             } }
@@ -47,7 +57,7 @@ struct TorrentPrototypeView: View {
                 if let url = download.video {
                     NavigationStack {
                         StreamPlayerView(url: url)
-                            .navigationTitle("Big Buck Bunny")
+                            .navigationTitle(source.title)
                             .toolbar { ToolbarItem(placement: .confirmationAction) {
                                 Button("Done") { playing = false }
                             } }
@@ -56,6 +66,9 @@ struct TorrentPrototypeView: View {
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase != .active && download.running { download.cancel() }
+            }
+            .onChange(of: download.video) { _, url in
+                if libraryPlayback && url != nil { playing = true }
             }
             .onDisappear { download.cancel() }
         }
@@ -68,11 +81,14 @@ final class TorrentPrototype: ObservableObject {
     @Published private(set) var progress = 0.0
     @Published private(set) var peers = 0
     @Published private(set) var video: URL?
-    @Published private(set) var message = "Ready to test."
+    @Published private(set) var message = "Ready to download."
     private var task: Task<Void, Never>?
     private var folder: URL?
-    private let metadataURL = URL(string: "https://webtorrent.io/torrents/big-buck-bunny.torrent")!
-    private let metadataSHA256 = "13b4241c2fc4c2be3806287895566c0f596b9716643f2e679fd1482bcc7ed449"
+    private let source: FreeMovieSource
+
+    init(source: FreeMovieSource = FreeMovieProvider.sources[0]) {
+        self.source = source
+    }
 
     func start() {
         guard !running else { return }
@@ -80,7 +96,7 @@ final class TorrentPrototype: ObservableObject {
         running = true
         progress = 0
         peers = 0
-        message = "Fetching test torrent…"
+        message = "Fetching video source…"
         task = Task { await run() }
     }
 
@@ -95,18 +111,18 @@ final class TorrentPrototype: ObservableObject {
         video = nil
         if let folder { try? FileManager.default.removeItem(at: folder) }
         folder = nil
-        message = "Ready to test."
+        message = "Ready to download."
     }
 
     private func run() async {
         var session: SwiftTorrent.Session?
         var completedURL: URL?
         do {
-            var request = URLRequest(url: metadataURL)
+            var request = URLRequest(url: source.metadataURL)
             request.timeoutInterval = 20
             let (data, response) = try await URLSession.shared.data(for: request)
             guard (response as? HTTPURLResponse)?.statusCode == 200,
-                  SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() == metadataSHA256 else {
+                  SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() == source.metadataSHA256 else {
                 throw PrototypeError.metadata
             }
             try Task.checkCancellation()
@@ -114,7 +130,7 @@ final class TorrentPrototype: ObservableObject {
             let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
                 .appendingPathComponent("TorrentTests", isDirectory: true)
                 .appendingPathComponent(UUID().uuidString, isDirectory: true)
-            try Self.validate(info: info, root: root)
+            try Self.validate(info: info, root: root, videoPath: source.videoPath)
             let capacity = try root.deletingLastPathComponent().deletingLastPathComponent()
                 .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
                 .volumeAvailableCapacityForImportantUsage ?? 0
@@ -154,14 +170,15 @@ final class TorrentPrototype: ObservableObject {
             }
             message = "Checking the downloaded video…"
             // The library ignores disk-write failures. Verify disk contents independently.
+            let videoPath = source.videoPath
             completedURL = try await Task.detached {
                 try Self.verifyFiles(info: info, root: root)
-                return root.appendingPathComponent("Big Buck Bunny/Big Buck Bunny.mp4")
+                return root.appendingPathComponent(videoPath)
             }.value
             try Task.checkCancellation()
         } catch {
-            message = Task.isCancelled ? "Test cancelled." :
-                ((error as? PrototypeError)?.description ?? "Test failed: " + error.localizedDescription)
+            message = Task.isCancelled ? "Download cancelled." :
+                ((error as? PrototypeError)?.description ??  "Download failed: " + error.localizedDescription)
         }
         if let session {
             do { try await session.shutdown() }
@@ -174,13 +191,13 @@ final class TorrentPrototype: ObservableObject {
         } else if let folder {
             try? FileManager.default.removeItem(at: folder)
             self.folder = nil
-            if Task.isCancelled { message = "Test cancelled." }
+            if Task.isCancelled { message = "Download cancelled." }
         }
         running = false
         task = nil
     }
 
-    nonisolated static func validate(info: TorrentInfo, root: URL) throws {
+    nonisolated static func validate(info: TorrentInfo, root: URL, videoPath: String = "Big Buck Bunny/Big Buck Bunny.mp4") throws {
         guard info.totalSize > 0, info.totalSize < 300_000_000,
               info.pieceLength > 0, info.pieceLength <= 4_194_304,
               info.pieces.count % 20 == 0,
@@ -193,7 +210,7 @@ final class TorrentPrototype: ObservableObject {
                   root.appendingPathComponent(file.path).standardizedFileURL.path.hasPrefix(prefix)
             else { throw PrototypeError.metadata }
         }
-        guard info.files.contains(where: { $0.path == "Big Buck Bunny/Big Buck Bunny.mp4" })
+        guard info.files.contains(where: { $0.path == videoPath })
         else { throw PrototypeError.metadata }
     }
 
@@ -230,7 +247,7 @@ private enum PrototypeError: Error {
     case metadata, space, noProgress, integrity
     var description: String {
         switch self {
-        case .metadata: return "The test torrent metadata could not be verified."
+        case .metadata: return "The video source could not be verified."
         case .space: return "Free at least 350 MB of storage and try again."
         case .noProgress: return "The torrent stopped making progress. Try again on another network."
         case .integrity: return "The downloaded video failed verification. Please retry."

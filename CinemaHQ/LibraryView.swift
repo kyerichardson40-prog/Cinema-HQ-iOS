@@ -15,22 +15,6 @@ struct MediaItem: Identifiable {
     var posterURL: URL? = nil
 }
 
-enum DemoCatalog {
-    // Original sample titles; replace with a connected catalogue when available.
-    static let items: [MediaItem] = [
-        .init(id: "orbit", title: "Beyond Orbit", synopsis: "A lone navigator follows a mysterious signal beyond the edge of the solar system.", kind: "Movies", genre: "Sci-Fi", year: "2025", duration: "1h 48m", symbol: "moon.stars.fill", tint: .indigo),
-        .init(id: "coast", title: "The Quiet Coast", synopsis: "Two estranged siblings return to their childhood seaside home for one unforgettable summer.", kind: "Movies", genre: "Drama", year: "2024", duration: "1h 36m", symbol: "water.waves", tint: .teal),
-        .init(id: "midnight", title: "Midnight Run", synopsis: "A courier has one night to cross the city and uncover the truth behind a missing package.", kind: "Movies", genre: "Thriller", year: "2025", duration: "1h 52m", symbol: "building.2.fill", tint: .purple),
-        .init(id: "wild", title: "Into the Wild Blue", synopsis: "Discover the extraordinary creatures and hidden landscapes beneath the ocean surface.", kind: "Movies", genre: "Documentary", year: "2023", duration: "1h 22m", symbol: "fish.fill", tint: .blue),
-        .init(id: "cafe", title: "Corner Café", synopsis: "An unlikely friendship starts over a terrible cup of coffee and a very good idea.", kind: "Movies", genre: "Comedy", year: "2024", duration: "1h 31m", symbol: "cup.and.saucer.fill", tint: .orange),
-        .init(id: "summit", title: "The Last Summit", synopsis: "A climbing team faces its greatest challenge on a remote mountain expedition.", kind: "Movies", genre: "Adventure", year: "2025", duration: "1h 44m", symbol: "mountain.2.fill", tint: .mint),
-        .init(id: "signal", title: "The Signal", synopsis: "An observatory team receives a transmission that changes everything they thought they knew.", kind: "TV Shows", genre: "Sci-Fi", year: "2025", duration: "2 seasons", symbol: "antenna.radiowaves.left.and.right", tint: .cyan),
-        .init(id: "harbour", title: "Harbour Street", synopsis: "Life, love and secrets unfold in a close-knit waterfront neighbourhood.", kind: "TV Shows", genre: "Drama", year: "2024", duration: "3 seasons", symbol: "sailboat.fill", tint: .teal),
-        .init(id: "case", title: "Cold Case Files", synopsis: "A small detective unit revisits the cases everyone else has forgotten.", kind: "TV Shows", genre: "Thriller", year: "2025", duration: "1 season", symbol: "fingerprint", tint: .red),
-        .init(id: "weekend", title: "Weekend People", synopsis: "Four friends turn ordinary weekends into extraordinary misadventures.", kind: "TV Shows", genre: "Comedy", year: "2024", duration: "2 seasons", symbol: "sun.max.fill", tint: .pink)
-    ]
-}
-
 struct LibraryView: View {
     @StateObject private var catalogue = TMDBCatalogue()
     @State private var showingConnection = false
@@ -63,10 +47,10 @@ struct LibraryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     Button { showingTorrentTest = true } label: {
-                        Label("Try torrent playback", systemImage: "arrow.down.circle")
+                        Label("Torrent connection test", systemImage: "arrow.down.circle")
                     }.buttonStyle(.bordered)
                     HStack {
-                        Label(catalogue.connected ? "TMDB catalogue" : "Sample catalogue", systemImage: "sparkles")
+                        Label(catalogue.connected ? "TMDB catalogue" : "Free films", systemImage: "sparkles")
                             .font(.caption).foregroundStyle(.secondary)
                         Spacer()
                         Text("\(results.count) titles").font(.caption).foregroundStyle(.secondary)
@@ -103,7 +87,7 @@ struct LibraryView: View {
                                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                                     .padding(24)
                                 VStack(alignment: .leading, spacing: 8) {
-                                    Text(catalogue.connected ? "POPULAR ON TMDB" : "FEATURED SAMPLE").font(.caption.weight(.bold)).tracking(2)
+                                    Text(catalogue.connected ? "POPULAR ON TMDB" : "FEATURED FREE FILM").font(.caption.weight(.bold)).tracking(2)
                                     Text(featured.title).font(.largeTitle.bold())
                                     Text("\(featured.genre) • \(featured.year)").font(.subheadline)
                                     Label("Explore title", systemImage: "arrow.right.circle.fill")
@@ -152,7 +136,7 @@ struct LibraryView: View {
                             }
                         }
                     }
-                    Text(catalogue.connected ? "Titles and posters supplied by TMDB. Video playback requires a separate source." : "Sample titles are for browsing only. Connect TMDB to browse real titles.")
+                    Text(catalogue.connected ? "Free films include a video source. TMDB supplies catalogue information and posters for other titles." : "Free films supplied by WebTorrent, with credits to the Blender Foundation. No account needed.")
                         .font(.footnote).foregroundStyle(.secondary).padding(.top, 8)
                 }.padding(20)
             }
@@ -223,6 +207,7 @@ struct TitleDetailView: View {
     let isSaved: Bool
     let toggleSaved: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var source: FreeMovieSource?
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -237,12 +222,23 @@ struct TitleDetailView: View {
                         Label(isSaved ? "Remove from My List" : "Add to My List", systemImage: isSaved ? "bookmark.fill" : "bookmark")
                             .frame(maxWidth: .infinity)
                     }.buttonStyle(.borderedProminent)
-                    Text(item.id.hasPrefix("tmdb-") ? "Catalogue information" : "Sample title").font(.headline)
-                    Text(item.id.hasPrefix("tmdb-") ? "TMDB provides title information and artwork. No video source is connected to this title yet." : "This is a catalogue preview. No video or episodes are connected to this title.")
-                        .foregroundStyle(.secondary)
+                    if let available = FreeMovieProvider.source(for: item) {
+                        Button { source = available } label: {
+                            Label("Play", systemImage: "play.fill").frame(maxWidth: .infinity)
+                        }.buttonStyle(.borderedProminent)
+                        Text("Free film • WebTorrent").font(.headline)
+                        Text("Download about \(available.sizeMB) MB from peers, then play. Keep the app open while downloading.")
+                            .foregroundStyle(.secondary)
+                        Link("Blender Foundation • Film credits and licence", destination: available.creditURL)
+                    } else {
+                        Text("Catalogue information").font(.headline)
+                        Text("No video source is available for this title. Browse the free films to watch without an account.")
+                            .foregroundStyle(.secondary)
+                    }
                 }.padding(24)
             }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .sheet(item: $source) { TorrentPrototypeView(source: $0, libraryPlayback: true) }
         }
     }
 }
@@ -391,13 +387,13 @@ private struct TMDBTitle: Codable {
 
 @MainActor
 final class TMDBCatalogue: ObservableObject {
-    @Published var items = DemoCatalog.items
+    @Published var items = FreeMovieProvider.items
     @Published var connected = CatalogueCredential.read() != nil
     @Published var loading = false
     @Published var error: String?
     @Published private var known: [TMDBTitle] = []
     private var generation = UUID()
-    var cachedItems: [MediaItem] { known.map(\.media) }
+    var cachedItems: [MediaItem] { FreeMovieProvider.items + known.map(\.media) }
 
     init() {
         if let data = UserDefaults.standard.data(forKey: "cinemaHQ.tmdbTitles"),
@@ -442,7 +438,7 @@ final class TMDBCatalogue: ObservableObject {
         connected = false
         loading = false
         error = nil
-        items = DemoCatalog.items
+        items = FreeMovieProvider.items
     }
 
     func load(query: String) async {
@@ -458,7 +454,7 @@ final class TMDBCatalogue: ObservableObject {
             try Task.checkCancellation()
             guard current == generation else { return }
             let fetched = (movies.results + shows.results).filter { $0.adult != true }
-            items = fetched.map(\.media)
+            items = FreeMovieProvider.items + fetched.map(\.media)
             var indexed = Dictionary(known.map { ($0.media.id, $0) }, uniquingKeysWith: { _, new in new })
             for title in fetched { indexed[title.media.id] = title }
             known = Array(indexed.values)
@@ -470,7 +466,7 @@ final class TMDBCatalogue: ObservableObject {
             guard current == generation else { return }
             loading = false
             if Task.isCancelled { return }
-            items = []
+            items = FreeMovieProvider.items
             self.error = (error as NSError).code == 401 ?
                 "TMDB rejected the token. Open catalogue settings to reconnect." :
                 "Could not load TMDB. Check your connection and tap Retry."
