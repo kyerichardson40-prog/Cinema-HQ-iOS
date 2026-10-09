@@ -1,9 +1,49 @@
 import XCTest
 import AVFoundation
 import CoreVideo
+import SwiftUI
+import VLCKit
 @testable import CinemaHQ
 
 final class ProgressivePlayerTests: XCTestCase {
+    @MainActor
+    func testHEVCMKVStreamsAndSurvivesFullScreenTransitions() async throws {
+        let fixture = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "progressive-hevc", withExtension: "mkv"))
+        let bytes = try Data(contentsOf: fixture)
+        let source = PartialMovie(bytes: bytes)
+        let server = TorrentStreamingServer(fileLength: Int64(bytes.count), contentType: "video/x-matroska", fileExtension: "mkv") {
+            try await source.read($0)
+        }
+        let url = try await server.start()
+        let playback = StreamPlayback(url: url)
+        let presentation = PlayerPresentation()
+        let host = UIHostingController(rootView: HostedPlayer(playback: playback, presentation: presentation))
+        let window = UIWindow(frame: UIScreen.main.bounds)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { playback.stop(); server.stop(); window.isHidden = true }
+        let deadline = Date().addingTimeInterval(45)
+        while playback.seconds < 0.5 && Date() < deadline && playback.error == nil {
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        XCTAssertNil(playback.error)
+        XCTAssertGreaterThanOrEqual(playback.seconds, 0.5, "HEVC MKV must start with later pieces unavailable.")
+        XCTAssertGreaterThan(playback.player.media?.statistics.decodedVideo ?? 0, 0, "The HEVC decoder must actually decode video.")
+        let originalPlayer = playback.player
+        presentation.expanded = true
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        XCTAssertNotNil(host.presentedViewController, "Full screen must present when requested.")
+        let expandedTime = playback.seconds
+        presentation.expanded = false
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        XCTAssertNil(host.presentedViewController)
+        XCTAssertTrue(playback.player === originalPlayer)
+        XCTAssertGreaterThanOrEqual(playback.seconds, expandedTime, "Returning inline must not restart or stop playback.")
+        XCTAssertTrue(playback.player.isPlaying)
+        let served = await source.servedByteCount()
+        XCTAssertLessThan(served, Int64(bytes.count))
+    }
+
     @MainActor
     func testAVPlayerStartsBeforeAllVideoBytesAreAvailable() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -127,6 +167,17 @@ final class ProgressivePlayerTests: XCTestCase {
         init(_ message: String) { self.message = message }
         var errorDescription: String? { message }
     }
+}
+
+@MainActor
+private final class PlayerPresentation: ObservableObject {
+    @Published var expanded = false
+}
+
+private struct HostedPlayer: View {
+    let playback: StreamPlayback
+    @ObservedObject var presentation: PlayerPresentation
+    var body: some View { StreamPlayerView(playback: playback, fullScreen: $presentation.expanded) }
 }
 
 private actor PartialMovie {

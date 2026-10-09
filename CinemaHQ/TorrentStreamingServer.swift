@@ -8,7 +8,7 @@ final class TorrentStreamingServer: @unchecked Sendable {
     private let fileLength: Int64
     private let contentType: String
     private let read: Read
-    private let path = "/\(UUID().uuidString)/video.mp4"
+    private let path: String
     private let queue = DispatchQueue(label: "app.cinemahq.torrent-http")
     private var listener: NWListener?
     private var startContinuation: CheckedContinuation<URL, Error>?
@@ -18,10 +18,12 @@ final class TorrentStreamingServer: @unchecked Sendable {
     private static let chunkSize: Int64 = 65_536
     private static let maximumClients = 8
 
-    init(fileLength: Int64, contentType: String = "video/mp4", read: @escaping Read) {
+    init(fileLength: Int64, contentType: String = "video/mp4", fileExtension: String = "mp4", read: @escaping Read) {
         self.fileLength = fileLength
         self.contentType = contentType
         self.read = read
+        let ext = ["mp4", "m4v", "mov", "mkv"].contains(fileExtension) ? fileExtension : "mp4"
+        path = "/\(UUID().uuidString)/video.\(ext)"
     }
 
     func start() async throws -> URL {

@@ -300,57 +300,6 @@ struct PlaybackLink: Identifiable {
     let url: URL
 }
 
-struct StreamPlayerView: View {
-    @State private var player: AVPlayer
-    @State private var item: AVPlayerItem
-    @State private var playbackError: String?
-    @State private var buffering = true
-
-    init(url: URL) {
-        let item = AVPlayerItem(url: url)
-        item.preferredForwardBufferDuration = 8
-        let player = AVPlayer(playerItem: item)
-        player.automaticallyWaitsToMinimizeStalling = false
-        _item = State(initialValue: item)
-        _player = State(initialValue: player)
-    }
-
-    var body: some View {
-        VStack {
-            VideoPlayer(player: player)
-            if buffering && playbackError == nil {
-                ProgressView("Buffering video…").padding()
-            }
-            if let playbackError {
-                Text(playbackError)
-                    .foregroundStyle(.secondary)
-                    .padding()
-            }
-        }
-        .onAppear { player.play() }
-        .onDisappear { player.pause() }
-        .onReceive(player.publisher(for: \.status)) { status in
-            if status == .failed {
-                playbackError = "This video could not be played. Check the link and try again."
-            }
-        }
-        .onReceive(player.publisher(for: \.timeControlStatus)) { status in
-            buffering = status == .waitingToPlayAtSpecifiedRate
-        }
-        .onReceive(item.publisher(for: \.status)) { status in
-            if status == .failed {
-                playbackError = "This source could not be played. Try another source or a smaller MP4 video."
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .AVPlayerItemFailedToPlayToEndTime)) { notification in
-            guard let item = notification.object as? AVPlayerItem,
-                  item === player.currentItem else { return }
-            playbackError = "Playback stopped because the video could not be loaded."
-        }
-    }
-}
-
-
 enum CatalogueCredential {
     private static let query: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
@@ -577,5 +526,4 @@ struct TMDBConnectionView: View {
         }
     }
 }
-
 

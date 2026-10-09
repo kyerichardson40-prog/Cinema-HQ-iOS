@@ -26,6 +26,12 @@ struct TorrentPrototypeView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let url = download.video {
+                    Section {
+                        StreamPlayerView(url: url, fullScreen: $playing).id(url)
+                            .listRowInsets(EdgeInsets())
+                    }
+                }
                 Section(source.title) {
                     Text(libraryPlayback ? source.providerName : "Torrent playback test").font(.headline)
                     Text("Start watching as the video arrives from peers. \(source.sizeDescription) Keep the app open; Wi-Fi is recommended.")
@@ -34,7 +40,7 @@ struct TorrentPrototypeView: View {
                         ProgressView(value: download.progress)
                         Text("\(Int(download.progress * 100))% • \(download.peers) peer connections")
                             .font(.caption).monospacedDigit()
-                        if download.video != nil { Button("Watch video") { playing = true } }
+                        
                         Button("Stop", role: .destructive) { download.cancel() }
                     } else {
                         Button(libraryPlayback ? "Play" : "Stream test video") { download.start() }
@@ -57,30 +63,11 @@ struct TorrentPrototypeView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) {
                 Button("Done") { download.cancel(); dismiss() }
             } }
-            .fullScreenCover(isPresented: $playing, onDismiss: { download.cancel() }) {
-                if let url = download.video {
-                    NavigationStack {
-                        VStack(spacing: 0) {
-                            StreamPlayerView(url: url)
-                            Text(download.message).font(.caption).foregroundStyle(.secondary).padding(.horizontal)
-                            if download.progress < 1 {
-                                ProgressView(value: download.progress).padding(.horizontal)
-                                Text("\(Int(download.progress * 100))% downloaded • \(download.peers) peers")
-                                    .font(.caption).monospacedDigit().padding(.bottom, 8)
-                            }
-                        }
-                            .navigationTitle(source.title)
-                            .toolbar { ToolbarItem(placement: .confirmationAction) {
-                                Button("Done") { playing = false }
-                            } }
-                    }
-                }
-            }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .background && download.running { download.cancel() }
             }
             .onChange(of: download.video) { _, url in
-                playing = url != nil
+                if url == nil { playing = false }
             }
             .onDisappear { if !playing { download.cancel() } }
             .task {
@@ -200,16 +187,16 @@ final class TorrentPrototype: ObservableObject {
                 offset: 0, length: bootstrapBytes)
             try await handle.setStreamingPriority(id: tailPriority, fileIndex: fileIndex,
                 offset: max(0, file.length - Int64(bootstrapBytes)), length: bootstrapBytes, lookAhead: 0)
-            let contentType = URL(fileURLWithPath: videoPath).pathExtension.lowercased() == "mov" ?
-                "video/quicktime" : "video/mp4"
-            let stream = TorrentStreamingServer(fileLength: file.length, contentType: contentType) { range in
+            let ext = URL(fileURLWithPath: videoPath).pathExtension.lowercased()
+            let contentType = ext == "mkv" ? "video/x-matroska" : (ext == "mov" ? "video/quicktime" : "video/mp4")
+            let stream = TorrentStreamingServer(fileLength: file.length, contentType: contentType, fileExtension: ext) { range in
                 try await handle.readVerifiedRange(fileIndex: fileIndex, offset: range.lowerBound,
                     length: Int(range.upperBound - range.lowerBound))
             }
             server = stream
             let playbackURL = try await stream.start()
             try Task.checkCancellation()
-            // Publish a range-capable URL immediately; AVPlayer drives buffering and seek priorities.
+            // Publish a range-capable URL immediately; The player drives buffering and seek priorities.
             video = playbackURL
             message = "Buffering video from peers…"
             var lastProgress = Date()
@@ -295,7 +282,7 @@ final class TorrentPrototype: ObservableObject {
             file = largest
         }
         let ext = URL(fileURLWithPath: file.path).pathExtension.lowercased()
-        guard ["mp4", "m4v", "mov"].contains(ext) else { throw PrototypeError.unsupported }
+        guard ["mp4", "m4v", "mov", "mkv"].contains(ext) else { throw PrototypeError.unsupported }
         return file.path
     }
 
@@ -360,7 +347,7 @@ private enum PrototypeError: Error {
         case .space: return "There is not enough free storage for this torrent. Free some space or choose a smaller source."
         case .noProgress: return "The torrent stopped making progress. Try again on another network."
         case .sourceFile: return "The source points to a file that is not in this torrent."
-        case .unsupported: return "This source uses a video format the iPhone player cannot open. Choose an MP4, M4V or MOV source."
+        case .unsupported: return "This source uses a video format the iPhone player cannot open. Choose an MKV, MP4, M4V or MOV source."
         case .integrity: return "The downloaded video failed verification. Please retry."
         }
     }

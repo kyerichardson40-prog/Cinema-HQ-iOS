@@ -229,7 +229,7 @@ struct APKSourceView: View {
     private var sourceInformation: some View {
         Section("About sources") {
                     Text("These providers are referenced by the Android APK. Results and availability are controlled by each provider.")
-                    Text("Torrent videos play while downloading. Seeking may pause briefly while new pieces arrive. MP4, M4V and MOV files can be played; other formats are not supported yet.")
+                    Text("Torrent videos play while downloading. Seeking may pause briefly while new pieces arrive. MKV, MP4, M4V and MOV files are supported, including x265/HEVC video. Use the full-screen button to expand the player.")
                     Text("Only play videos you have permission to access. Peers can see your IP address while connected.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
@@ -252,5 +252,4 @@ struct APKSourceView: View {
         if generation == requestID { loading = false }
     }
 }
-
 

@@ -14,11 +14,15 @@ permissions:
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: brew install xcodegen ffmpeg
+      - name: Generate original HEVC MKV streaming fixture
+        run: |
+          mkdir -p Tests/Fixtures
+          ffmpeg -hide_banner -loglevel error -f lavfi -i 'testsrc2=size=640x360:rate=10' -t 40 -c:v libx265 -preset ultrafast -crf 18 -pix_fmt yuv420p10le -x265-params 'pools=1:frame-threads=1:keyint=10' Tests/Fixtures/progressive-hevc.mkv
       - name: Prepare and test torrent engine
         run: |
           git clone --filter=blob:none --no-checkout https://github.com/warppipe/swift-torrent.git Vendor/SwiftTorrent
@@ -35,7 +39,7 @@ jobs:
       - name: Generate project
         run: xcodegen generate
       - name: Compile app and tests
-        timeout-minutes: 6
+        timeout-minutes: 12
         run: |
           device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; devices=json.load(sys.stdin)["devices"]; print(next(d["udid"] for group in devices.values() for d in group if d["name"].startswith("iPhone")))')
           echo "$device" > /tmp/cinema-test-device
@@ -59,3 +63,4 @@ jobs:
           name: CinemaHQ-unsigned-IPA
           path: CinemaHQ-unsigned.ipa
           retention-days: 7
+
