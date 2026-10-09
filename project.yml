@@ -3,17 +3,33 @@ options:
   bundleIdPrefix: app.cinemahq
 settings:
   base:
-    IPHONEOS_DEPLOYMENT_TARGET: '16.0'
+    IPHONEOS_DEPLOYMENT_TARGET: '17.0'
     SWIFT_VERSION: '5.0'
     CODE_SIGNING_ALLOWED: 'NO'
+packages:
+  SwiftTorrent:
+    url: https://github.com/warppipe/swift-torrent.git
+    revision: 79ab342c50621d69bce0d6f61228fcaf70c4ae48
 targets:
   CinemaHQ:
     type: application
     platform: iOS
     sources: [CinemaHQ]
+    dependencies:
+      - package: SwiftTorrent
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.cinemahq.ios
         GENERATE_INFOPLIST_FILE: 'YES'
         INFOPLIST_KEY_UILaunchScreen_Generation: 'YES'
         TARGETED_DEVICE_FAMILY: '1,2'
+  CinemaHQTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: CinemaHQ
+      - package: SwiftTorrent
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: 'YES'

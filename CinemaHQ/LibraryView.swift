@@ -40,6 +40,7 @@ struct LibraryView: View {
     @State private var savedOnly = false
     @State private var selected: MediaItem?
     @State private var showingVideo = false
+    @State private var showingTorrentTest = false
     @AppStorage("cinemaHQ.watchlist") private var savedIDs = ""
     private let columns = [GridItem(.adaptive(minimum: 145), spacing: 16)]
 
@@ -61,6 +62,9 @@ struct LibraryView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
+                    Button { showingTorrentTest = true } label: {
+                        Label("Try torrent playback", systemImage: "arrow.down.circle")
+                    }.buttonStyle(.bordered)
                     HStack {
                         Label(catalogue.connected ? "TMDB catalogue" : "Sample catalogue", systemImage: "sparkles")
                             .font(.caption).foregroundStyle(.secondary)
@@ -175,6 +179,7 @@ struct LibraryView: View {
                 }
             }
             .sheet(isPresented: $showingVideo) { OpenVideoView() }
+            .sheet(isPresented: $showingTorrentTest) { TorrentPrototypeView() }
             .sheet(isPresented: $showingConnection) { TMDBConnectionView(catalogue: catalogue) }
             .task(id: query + String(catalogue.connected)) {
                 do { try await Task.sleep(nanoseconds: 350_000_000) } catch { return }
