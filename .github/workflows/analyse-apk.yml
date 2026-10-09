@@ -1,0 +1,48 @@
+name: Analyse Cinema HQ 8.5
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  analyse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq jadx apktool jq git-lfs
+      - name: Acquire official APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p analysis-output
+          gh api repos/Inside4ndroid/Cinema-HQ/releases/tags/v8.5 > analysis-output/release.json
+          jq '[.assets[] | {name,size,content_type}]' analysis-output/release.json > analysis-output/assets.json
+          id=$(jq -r '[.assets[] | select(.name | ascii_downcase | endswith(".apk"))][0].id // empty' analysis-output/release.json)
+          if [ -n "$id" ]; then
+            gh api -H 'Accept: application/octet-stream' "repos/Inside4ndroid/Cinema-HQ/releases/assets/$id" > /tmp/cinema.apk
+          else
+            git clone --depth 1 --branch v8.5 https://github.com/Inside4ndroid/Cinema-HQ.git /tmp/upstream
+            (cd /tmp/upstream && git lfs pull)
+            find /tmp/upstream -type f -iname '*.apk' -size +1M -print -quit > /tmp/apkpath
+            test -s /tmp/apkpath || { echo "No APK retrieved" | tee analysis-output/error.txt; exit 1; }
+            cp "$(cat /tmp/apkpath)" /tmp/cinema.apk
+          fi
+          unzip -t /tmp/cinema.apk >/dev/null
+          sha256sum /tmp/cinema.apk > analysis-output/sha256.txt
+      - name: Inspect dependencies and manifest
+        run: |
+          apktool d -f /tmp/cinema.apk -o /tmp/apk-resources > analysis-output/apktool.log 2>&1 || true
+          jadx --no-res -d /tmp/apk-java /tmp/cinema.apk > analysis-output/jadx.log 2>&1 || true
+          cp /tmp/apk-resources/AndroidManifest.xml analysis-output/AndroidManifest.xml 2>/dev/null || true
+          find /tmp/apk-java -type f -name '*.java' | sed 's#^/tmp/apk-java/##' | head -n 2000 > analysis-output/class-index.txt || true
+          grep -RhiE 'ExoPlayer|MediaPlayer|okhttp|retrofit|m3u8|\.mpd|WebView|torrent|peer.?to.?peer' /tmp/apk-java --include='*.java' | head -n 200 > analysis-output/technology-hints.txt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cinema-hq-analysis
+          path: analysis-output/
+          retention-days: 7
