@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - 'CinemaHQ/**'
+      - 'Tests/**'
+      - 'EngineTests/**'
+      - 'scripts/patch-torrent-engine.py'
       - 'project.yml'
       - '.github/workflows/build-ios.yml'
 permissions:
@@ -20,13 +23,14 @@ jobs:
         run: |
           git clone --filter=blob:none --no-checkout https://github.com/warppipe/swift-torrent.git Vendor/SwiftTorrent
           git -C Vendor/SwiftTorrent checkout --detach 79ab342c50621d69bce0d6f61228fcaf70c4ae48
-          cp EngineTests/TorrentDownloadRegressionTests.swift Vendor/SwiftTorrent/Tests/SwiftTorrentTests/
+          python3 -c 'from pathlib import Path; source=Path("EngineTests/TorrentDownloadRegressionTests.swift").read_text(); Path("Vendor/SwiftTorrent/Tests/SwiftTorrentTests/TorrentDownloadRegressionTests.swift").write_text(source.split("    func testDownloadsBeyondRequestPipelineFromLocalSeeder")[0] + "}\n")'
           if swift test --package-path Vendor/SwiftTorrent --filter TorrentDownloadRegressionTests.testOutOfOrderBlocksRemainBuffered > /tmp/torrent-baseline.log 2>&1; then
             echo "Expected the original engine to fail the out-of-order regression"
             exit 1
           fi
           grep -q 'XCTAssertTrue failed' /tmp/torrent-baseline.log || { cat /tmp/torrent-baseline.log; exit 1; }
           python3 scripts/patch-torrent-engine.py
+          cp EngineTests/TorrentDownloadRegressionTests.swift Vendor/SwiftTorrent/Tests/SwiftTorrentTests/
           swift test --package-path Vendor/SwiftTorrent --filter TorrentDownloadRegressionTests
       - name: Generate project
         run: xcodegen generate

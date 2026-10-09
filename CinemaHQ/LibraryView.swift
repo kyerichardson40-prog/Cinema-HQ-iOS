@@ -25,6 +25,7 @@ struct LibraryView: View {
     @State private var selected: MediaItem?
     @State private var showingVideo = false
     @State private var showingTorrentTest = false
+    @State private var showingAPKSources = false
     @AppStorage("cinemaHQ.watchlist") private var savedIDs = ""
     private let columns = [GridItem(.adaptive(minimum: 145), spacing: 16)]
 
@@ -48,6 +49,9 @@ struct LibraryView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     Button { showingTorrentTest = true } label: {
                         Label("Torrent connection test", systemImage: "arrow.down.circle")
+                    }.buttonStyle(.bordered)
+                    Button { showingAPKSources = true } label: {
+                        Label("Find video sources", systemImage: "play.rectangle.on.rectangle")
                     }.buttonStyle(.bordered)
                     HStack {
                         Label(catalogue.connected ? "TMDB catalogue" : "Free films", systemImage: "sparkles")
@@ -164,6 +168,7 @@ struct LibraryView: View {
             }
             .sheet(isPresented: $showingVideo) { OpenVideoView() }
             .sheet(isPresented: $showingTorrentTest) { TorrentPrototypeView() }
+            .sheet(isPresented: $showingAPKSources) { APKSourceView(item: nil) }
             .sheet(isPresented: $showingConnection) { TMDBConnectionView(catalogue: catalogue) }
             .task(id: query + String(catalogue.connected)) {
                 do { try await Task.sleep(nanoseconds: 350_000_000) } catch { return }
@@ -208,6 +213,7 @@ struct TitleDetailView: View {
     let toggleSaved: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var source: FreeMovieSource?
+    @State private var showingAPKSources = false
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -222,6 +228,9 @@ struct TitleDetailView: View {
                         Label(isSaved ? "Remove from My List" : "Add to My List", systemImage: isSaved ? "bookmark.fill" : "bookmark")
                             .frame(maxWidth: .infinity)
                     }.buttonStyle(.borderedProminent)
+                    Button { showingAPKSources = true } label: {
+                        Label("Find video sources", systemImage: "play.rectangle").frame(maxWidth: .infinity)
+                    }.buttonStyle(.bordered)
                     if let available = FreeMovieProvider.source(for: item) {
                         Button { source = available } label: {
                             Label("Play", systemImage: "play.fill").frame(maxWidth: .infinity)
@@ -232,13 +241,14 @@ struct TitleDetailView: View {
                         Link("Blender Foundation • Film credits and licence", destination: available.creditURL)
                     } else {
                         Text("Catalogue information").font(.headline)
-                        Text("No video source is available for this title. Browse the free films to watch without an account.")
+                        Text("Tap Find video sources to check the APK providers for this title.")
                             .foregroundStyle(.secondary)
                     }
                 }.padding(24)
             }
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .sheet(item: $source) { TorrentPrototypeView(source: $0, libraryPlayback: true) }
+            .sheet(isPresented: $showingAPKSources) { APKSourceView(item: item) }
         }
     }
 }
@@ -327,7 +337,7 @@ struct StreamPlayerView: View {
 }
 
 
-private enum CatalogueCredential {
+enum CatalogueCredential {
     private static let query: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
         kSecAttrService as String: "app.cinemahq.tmdb",

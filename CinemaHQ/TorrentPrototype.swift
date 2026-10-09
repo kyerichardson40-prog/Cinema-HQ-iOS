@@ -3,14 +3,20 @@ import SwiftTorrent
 import CryptoKit
 
 struct TorrentPrototypeView: View {
-    let source: FreeMovieSource
+    let source: TorrentVideoSource
     let libraryPlayback: Bool
     @StateObject private var download: TorrentPrototype
 
     init(source: FreeMovieSource = FreeMovieProvider.sources[0], libraryPlayback: Bool = false) {
-        self.source = source
+        let videoSource = TorrentVideoSource(free: source)
+        self.source = videoSource
         self.libraryPlayback = libraryPlayback
-        _download = StateObject(wrappedValue: TorrentPrototype(source: source))
+        _download = StateObject(wrappedValue: TorrentPrototype(source: videoSource))
+    }
+    init(torrent: TorrentVideoSource) {
+        source = torrent
+        libraryPlayback = true
+        _download = StateObject(wrappedValue: TorrentPrototype(source: torrent))
     }
     @State private var playing = false
     @Environment(\.dismiss) private var dismiss
@@ -20,8 +26,8 @@ struct TorrentPrototypeView: View {
         NavigationStack {
             Form {
                 Section(source.title) {
-                    Text(libraryPlayback ? "Free film • WebTorrent" : "Torrent playback test").font(.headline)
-                    Text("Download this freely licensed video from peers, then play it on your iPhone. About \(source.sizeMB) MB. Keep the app open; Wi-Fi is recommended.")
+                    Text(libraryPlayback ? source.providerName : "Torrent playback test").font(.headline)
+                    Text("Download from peers, then play on your iPhone. \(source.sizeDescription) Keep the app open; Wi-Fi is recommended.")
                     Text(download.message).foregroundStyle(.secondary)
                     if download.running {
                         ProgressView(value: download.progress)
@@ -39,10 +45,9 @@ struct TorrentPrototypeView: View {
                     Text("The complete video is downloaded and verified before playback.")
                     Text("Peers can see your IP address while connected.")
                         .font(.footnote).foregroundStyle(.secondary)
-                    Link("\(source.title) • Blender Foundation • Film credits and licence",
+                    Link(source.creditLabel,
                          destination: source.creditURL)
-                    Link("Video source: WebTorrent",
-                         destination: URL(string: "https://webtorrent.io/free-torrents")!)
+
                     if !libraryPlayback {
                         Link("Torrent engine: SwiftTorrent (MIT)",
                              destination: URL(string: "https://github.com/warppipe/swift-torrent")!)
@@ -84,9 +89,9 @@ final class TorrentPrototype: ObservableObject {
     @Published private(set) var message = "Ready to download."
     private var task: Task<Void, Never>?
     private var folder: URL?
-    private let source: FreeMovieSource
+    private let source: TorrentVideoSource
 
-    init(source: FreeMovieSource = FreeMovieProvider.sources[0]) {
+    init(source: TorrentVideoSource = TorrentVideoSource(free: FreeMovieProvider.sources[0])) {
         self.source = source
     }
 
@@ -118,23 +123,9 @@ final class TorrentPrototype: ObservableObject {
         var session: SwiftTorrent.Session?
         var completedURL: URL?
         do {
-            var request = URLRequest(url: source.metadataURL)
-            request.timeoutInterval = 20
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard (response as? HTTPURLResponse)?.statusCode == 200,
-                  SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() == source.metadataSHA256 else {
-                throw PrototypeError.metadata
-            }
-            try Task.checkCancellation()
-            let info = try TorrentInfo.parse(from: data)
             let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
                 .appendingPathComponent("TorrentTests", isDirectory: true)
                 .appendingPathComponent(UUID().uuidString, isDirectory: true)
-            try Self.validate(info: info, root: root, videoPath: source.videoPath)
-            let capacity = try root.deletingLastPathComponent().deletingLastPathComponent()
-                .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-                .volumeAvailableCapacityForImportantUsage ?? 0
-            guard capacity > info.totalSize + 50_000_000 else { throw PrototypeError.space }
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             folder = root
             let engine = SwiftTorrent.Session(settings: SessionSettings(
@@ -142,11 +133,46 @@ final class TorrentPrototype: ObservableObject {
                 dhtEnabled: false, savePath: root.path
             ))
             session = engine
-            let handle = try await engine.addTorrent(AddTorrentParams(
-                torrentInfo: info, savePath: root.path, paused: true
-            ))
-            message = "Connecting to torrent peers…"
-            try await handle.start()
+            let info: TorrentInfo
+            let handle: TorrentHandle
+            let videoPath: String
+            switch source.location {
+            case .verified(let metadataURL, let digest, let expectedPath):
+                var request = URLRequest(url: metadataURL)
+                request.timeoutInterval = 20
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard (response as? HTTPURLResponse)?.statusCode == 200,
+                      data.count <= 4_194_304,
+                      SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() == digest
+                else { throw PrototypeError.metadata }
+                info = try TorrentInfo.parse(from: data)
+                try Self.validate(info: info, root: root, videoPath: expectedPath)
+                try Self.checkSpace(info: info, root: root)
+                videoPath = expectedPath
+                handle = try await engine.addTorrent(AddTorrentParams(
+                    torrentInfo: info, savePath: root.path, paused: true
+                ))
+                message = "Connecting to torrent peers…"
+                try await handle.start()
+            case .magnet(let hash, let fileIndex, let trackers):
+                var components = URLComponents()
+                components.scheme = "magnet"
+                components.queryItems = [URLQueryItem(name: "xt", value: "urn:btih:" + hash)] +
+                    trackers.map { URLQueryItem(name: "tr", value: $0) }
+                guard let uri = components.string, let magnet = MagnetLink(uri: uri) else { throw PrototypeError.metadata }
+                handle = try await engine.addTorrent(AddTorrentParams(
+                    magnetLink: magnet, savePath: root.path, paused: true,
+                    metadataValidator: { candidate in
+                        let path = try Self.selectedVideo(info: candidate, fileIndex: fileIndex)
+                        try Self.validate(info: candidate, root: root, videoPath: path, maximumSize: 16_000_000_000)
+                        try Self.checkSpace(info: candidate, root: root)
+                    }
+                ))
+                message = "Fetching torrent details from peers…"
+                try await handle.start()
+                info = try await waitForDetails(handle: handle)
+                videoPath = try Self.selectedVideo(info: info, fileIndex: fileIndex)
+            }
             try Task.checkCancellation()
             var lastProgress = Date()
             var best = 0.0
@@ -170,7 +196,6 @@ final class TorrentPrototype: ObservableObject {
             }
             message = "Checking the downloaded video…"
             // The library ignores disk-write failures. Verify disk contents independently.
-            let videoPath = source.videoPath
             completedURL = try await Task.detached {
                 try Self.verifyFiles(info: info, root: root)
                 return root.appendingPathComponent(videoPath)
@@ -197,8 +222,40 @@ final class TorrentPrototype: ObservableObject {
         task = nil
     }
 
-    nonisolated static func validate(info: TorrentInfo, root: URL, videoPath: String = "Big Buck Bunny/Big Buck Bunny.mp4") throws {
-        guard info.totalSize > 0, info.totalSize < 300_000_000,
+    private func waitForDetails(handle: TorrentHandle) async throws -> TorrentInfo {
+        let deadline = Date().addingTimeInterval(90)
+        while Date() < deadline {
+            try Task.checkCancellation()
+            peers = await handle.status().numPeers
+            do { return try await handle.waitForMetadata(timeout: 2) }
+            catch TorrentError.timeout { continue }
+        }
+        throw PrototypeError.noProgress
+    }
+
+    nonisolated static func selectedVideo(info: TorrentInfo, fileIndex: Int?) throws -> String {
+        let file: TorrentInfo.FileEntry
+        if let index = fileIndex {
+            guard info.files.indices.contains(index) else { throw PrototypeError.sourceFile }
+            file = info.files[index]
+        } else {
+            guard let largest = info.files.max(by: { $0.length < $1.length }) else { throw PrototypeError.sourceFile }
+            file = largest
+        }
+        let ext = URL(fileURLWithPath: file.path).pathExtension.lowercased()
+        guard ["mp4", "m4v", "mov"].contains(ext) else { throw PrototypeError.unsupported }
+        return file.path
+    }
+
+    nonisolated static func checkSpace(info: TorrentInfo, root: URL) throws {
+        let cache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        let available = try cache.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+            .volumeAvailableCapacityForImportantUsage ?? 0
+        guard available > info.totalSize + 50_000_000 else { throw PrototypeError.space }
+    }
+
+    nonisolated static func validate(info: TorrentInfo, root: URL, videoPath: String = "Big Buck Bunny/Big Buck Bunny.mp4", maximumSize: Int64 = 300_000_000) throws {
+        guard info.totalSize > 0, info.totalSize < maximumSize,
               info.pieceLength > 0, info.pieceLength <= 4_194_304,
               info.pieces.count % 20 == 0,
               Int64(info.pieceCount) == (info.totalSize + Int64(info.pieceLength) - 1) / Int64(info.pieceLength)
@@ -244,12 +301,14 @@ final class TorrentPrototype: ObservableObject {
 }
 
 private enum PrototypeError: Error {
-    case metadata, space, noProgress, integrity
+    case metadata, space, noProgress, integrity, sourceFile, unsupported
     var description: String {
         switch self {
         case .metadata: return "The video source could not be verified."
-        case .space: return "Free at least 350 MB of storage and try again."
+        case .space: return "There is not enough free storage for this torrent. Free some space or choose a smaller source."
         case .noProgress: return "The torrent stopped making progress. Try again on another network."
+        case .sourceFile: return "The source points to a file that is not in this torrent."
+        case .unsupported: return "This source uses a video format the iPhone player cannot open. Choose an MP4, M4V or MOV source."
         case .integrity: return "The downloaded video failed verification. Please retry."
         }
     }
