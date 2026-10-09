@@ -1,0 +1,32 @@
+name: Build unsigned iOS IPA
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'CinemaHQ/**'
+      - 'project.yml'
+      - '.github/workflows/build-ios.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Build
+        run: xcodebuild -project CinemaHQ.xcodeproj -scheme CinemaHQ -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -R DerivedData/Build/Products/Release-iphoneos/CinemaHQ.app Payload/
+          zip -qr CinemaHQ-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CinemaHQ-unsigned-IPA
+          path: CinemaHQ-unsigned.ipa
+          retention-days: 7
