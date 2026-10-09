@@ -40,7 +40,7 @@ struct LibraryView: View {
                         if let url = item.streamURL {
                             VideoPlayer(player: AVPlayer(url: url))
                         } else {
-                            ContentUnavailableView("No authorised stream", systemImage: "play.slash", description: Text("Connect a licensed provider to play this title."))
+                            VStack(spacing: 12) { Image(systemName: "play.slash").font(.largeTitle); Text("No authorised stream").font(.headline); Text("Connect a licensed provider to play this title.").foregroundStyle(.secondary) }.padding()
                         }
                     }
                     .navigationTitle(item.title)
