@@ -44,11 +44,7 @@ struct LibraryView: View {
                         }
                     }
                     .navigationTitle(item.title)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { selected = nil }
-                        }
-                    }
+                    .navigationBarItems(trailing: Button("Done") { selected = nil })
                 }
             }
         }
