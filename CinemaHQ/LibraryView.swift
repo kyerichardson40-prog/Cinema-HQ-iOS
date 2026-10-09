@@ -34,7 +34,7 @@ struct LibraryView: View {
     }
 
     private var results: [MediaItem] {
-        (savedOnly && catalogue.connected ? catalogue.cachedItems : catalogue.items).filter {
+        (savedOnly ? catalogue.cachedItems : catalogue.items).filter {
             (category == "All" || $0.kind == category) &&
             (genre == "All genres" || $0.genre == genre) &&
             (!savedOnly || watchlist.contains($0.id)) &&
@@ -54,7 +54,7 @@ struct LibraryView: View {
                         Label("Find video sources", systemImage: "play.rectangle.on.rectangle")
                     }.buttonStyle(.bordered)
                     HStack {
-                        Label(catalogue.connected ? "TMDB catalogue" : "Free films", systemImage: "sparkles")
+                        Label(catalogue.connected ? "TMDB catalogue" : "Cinemeta catalogue", systemImage: "sparkles")
                             .font(.caption).foregroundStyle(.secondary)
                         Spacer()
                         Text("\(results.count) titles").font(.caption).foregroundStyle(.secondary)
@@ -91,7 +91,7 @@ struct LibraryView: View {
                                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                                     .padding(24)
                                 VStack(alignment: .leading, spacing: 8) {
-                                    Text(catalogue.connected ? "POPULAR ON TMDB" : "FEATURED FREE FILM").font(.caption.weight(.bold)).tracking(2)
+                                    Text(featured.id.hasPrefix("free-") ? "FEATURED FREE FILM" : "FEATURED TITLE").font(.caption.weight(.bold)).tracking(2)
                                     Text(featured.title).font(.largeTitle.bold())
                                     Text("\(featured.genre) • \(featured.year)").font(.subheadline)
                                     Label("Explore title", systemImage: "arrow.right.circle.fill")
@@ -105,10 +105,6 @@ struct LibraryView: View {
                     if let message = catalogue.error {
                         Text(message).foregroundStyle(.secondary)
                         Button("Retry") { Task { await catalogue.load(query: query) } }
-                    }
-                    if !catalogue.connected {
-                        Button("Connect TMDB for real movies and TV") { showingConnection = true }
-                            .buttonStyle(.borderedProminent)
                     }
                     Text(savedOnly ? "My List" : "Browse library").font(.title2.bold())
                     if results.isEmpty {
@@ -140,7 +136,7 @@ struct LibraryView: View {
                             }
                         }
                     }
-                    Text(catalogue.connected ? "Free films include a video source. TMDB supplies catalogue information and posters for other titles." : "Free films supplied by WebTorrent, with credits to the Blender Foundation. No account needed.")
+                    Text(catalogue.connected ? "Catalogue information and posters from TMDB. Tap Play on a title to check the APK providers." : "Catalogue information and posters from Cinemeta. Choose Find video sources on a title to check the APK providers. No catalogue account needed.")
                         .font(.footnote).foregroundStyle(.secondary).padding(.top, 8)
                 }.padding(20)
             }
@@ -229,7 +225,7 @@ struct TitleDetailView: View {
                             .frame(maxWidth: .infinity)
                     }.buttonStyle(.borderedProminent)
                     Button { showingAPKSources = true } label: {
-                        Label("Find video sources", systemImage: "play.rectangle").frame(maxWidth: .infinity)
+                        Label(FreeMovieProvider.source(for: item) == nil ? "Play" : "Find video sources", systemImage: "play.rectangle").frame(maxWidth: .infinity)
                     }.buttonStyle(.bordered)
                     if let available = FreeMovieProvider.source(for: item) {
                         Button { source = available } label: {
@@ -241,7 +237,7 @@ struct TitleDetailView: View {
                         Link("Blender Foundation • Film credits and licence", destination: available.creditURL)
                     } else {
                         Text("Catalogue information").font(.headline)
-                        Text("Tap Find video sources to check the APK providers for this title.")
+                        Text("Tap Play to check the APK providers for this title.")
                             .foregroundStyle(.secondary)
                     }
                 }.padding(24)
@@ -402,10 +398,13 @@ final class TMDBCatalogue: ObservableObject {
     @Published var loading = false
     @Published var error: String?
     @Published private var known: [TMDBTitle] = []
+    @Published private var publicKnown: [PublicCatalogueTitle] = []
     private var generation = UUID()
-    var cachedItems: [MediaItem] { FreeMovieProvider.items + known.map(\.media) }
+    var cachedItems: [MediaItem] { FreeMovieProvider.items + known.map(\.media) + publicKnown.compactMap(\.media) }
 
     init() {
+        if let data = UserDefaults.standard.data(forKey: "cinemaHQ.publicTitles"),
+           let saved = try? JSONDecoder().decode([PublicCatalogueTitle].self, from: data) { publicKnown = saved }
         if let data = UserDefaults.standard.data(forKey: "cinemaHQ.tmdbTitles"),
            let saved = try? JSONDecoder().decode([TMDBTitle].self, from: data) { known = saved }
     }
@@ -451,8 +450,42 @@ final class TMDBCatalogue: ObservableObject {
         items = FreeMovieProvider.items
     }
 
+    private func loadPublic(query: String) async {
+        let current = UUID()
+        generation = current
+        loading = true
+        error = nil
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            async let movies = PublicCatalogueAPI.fetch(type: "movie", query: query)
+            async let shows = PublicCatalogueAPI.fetch(type: "series", query: query)
+            let (movieTitles, showTitles) = try await (movies, shows)
+            let fetched = movieTitles + showTitles
+            try Task.checkCancellation()
+            guard current == generation else { return }
+            let titles = fetched.filter { $0.media != nil && !["tt1254207", "tt1727587"].contains($0.id) }
+            items = FreeMovieProvider.items + titles.compactMap(\.media)
+            var indexed = Dictionary(publicKnown.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+            for title in titles { indexed[title.id] = title }
+            publicKnown = Array(indexed.values)
+            if let data = try? JSONEncoder().encode(publicKnown) {
+                UserDefaults.standard.set(data, forKey: "cinemaHQ.publicTitles")
+            }
+            loading = false
+        } catch {
+            guard current == generation else { return }
+            loading = false
+            if Task.isCancelled { return }
+            items = FreeMovieProvider.items
+            self.error = "Could not load the catalogue. The free films are still available; tap Retry to reconnect."
+        }
+    }
+
     func load(query: String) async {
-        guard let token = CatalogueCredential.read() else { return }
+        guard let token = CatalogueCredential.read() else {
+            await loadPublic(query: query)
+            return
+        }
         let current = UUID()
         generation = current
         loading = true
@@ -515,7 +548,8 @@ struct TMDBConnectionView: View {
                 Section("About the catalogue") {
                     Link("TMDB • The Movie Database", destination: URL(string: "https://www.themoviedb.org")!)
                     Text("This product uses the TMDB API but is not endorsed or certified by TMDB.")
-                    Text("TMDB supplies information and posters, not video streams. My List is saved locally; Trakt sync is not connected.")
+                    Link("Cinemeta • Public movie and TV catalogue", destination: URL(string: "https://v3-cinemeta.strem.io/manifest.json")!)
+                    Text("Cinemeta supplies a public catalogue without an account. Connecting TMDB switches the catalogue to TMDB. Video sources are checked separately; My List stays on this device.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }

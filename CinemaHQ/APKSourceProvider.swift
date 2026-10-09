@@ -120,6 +120,10 @@ enum ProviderAPI {
     }
 
     static func imdbID(for item: MediaItem) async throws -> String? {
+        if item.id.hasPrefix("imdb-"), let id = item.id.split(separator: "-").last {
+            let value = String(id)
+            if value.range(of: "^tt[0-9]{5,12}$", options: .regularExpression) != nil { return value }
+        }
         let freeIDs = ["free-bunny": "tt1254207", "free-sintel": "tt1727587"]
         if let id = freeIDs[item.id] { return id }
         guard item.id.hasPrefix("tmdb-"), let token = CatalogueCredential.read(),
