@@ -302,6 +302,7 @@ struct PlaybackLink: Identifiable {
 
 struct StreamPlayerView: View {
     @State private var player: AVPlayer
+    @State private var item: AVPlayerItem
     @State private var playbackError: String?
     @State private var buffering = true
 
@@ -310,6 +311,7 @@ struct StreamPlayerView: View {
         item.preferredForwardBufferDuration = 8
         let player = AVPlayer(playerItem: item)
         player.automaticallyWaitsToMinimizeStalling = false
+        _item = State(initialValue: item)
         _player = State(initialValue: player)
     }
 
@@ -334,6 +336,11 @@ struct StreamPlayerView: View {
         }
         .onReceive(player.publisher(for: \.timeControlStatus)) { status in
             buffering = status == .waitingToPlayAtSpecifiedRate
+        }
+        .onReceive(item.publisher(for: \.status)) { status in
+            if status == .failed {
+                playbackError = "This source could not be played. Try another source or a smaller MP4 video."
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .AVPlayerItemFailedToPlayToEndTime)) { notification in
             guard let item = notification.object as? AVPlayerItem,
@@ -570,4 +577,5 @@ struct TMDBConnectionView: View {
         }
     }
 }
+
 
