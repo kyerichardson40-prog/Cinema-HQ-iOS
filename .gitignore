@@ -1,0 +1,8 @@
+*.apk
+*.ipa
+*.xcarchive
+*.mobileprovision
+*.p12
+DerivedData/
+.analysis/
+.DS_Store
