@@ -185,6 +185,7 @@ final class TorrentPrototype: ObservableObject {
                 ))
                 message = "Fetching torrent details from peers…"
                 try await handle.start()
+                await handle.startDHTPeerDiscovery()
                 info = try await waitForDetails(handle: handle)
                 videoPath = try Self.selectedVideo(info: info, fileIndex: fileIndex)
             }

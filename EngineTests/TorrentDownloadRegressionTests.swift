@@ -298,6 +298,102 @@ final class TorrentDownloadRegressionTests: XCTestCase {
         try await group.shutdownGracefully()
     }
 
+    func testTrackerBinaryIdentifiersAreEncodedExactlyOnce() throws {
+        let bytes = Data([0, 0x25, 0x26, 0x2B, 0xFF] + Array(repeating: UInt8(0xAB), count: 15))
+        let params = AnnounceParams(infoHash: InfoHash(bytes: bytes), peerID: bytes, port: 6881, left: 1)
+        let url = try HTTPTracker(announceURL: "https://tracker.example/announce?passkey=keep").announceURL(params: params)
+        let query = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedQuery)
+        XCTAssertTrue(query.contains("passkey=keep"))
+        let expected = bytes.map { String(format: "%%%02X", $0) }.joined()
+        XCTAssertTrue(query.contains("info_hash=" + expected))
+        XCTAssertTrue(query.contains("peer_id=" + expected))
+        XCTAssertFalse(query.contains("%2525"), "A binary percent byte must not be escaped twice.")
+    }
+
+    func testEmptyTrackerDoesNotSuppressPeersFromOtherTrackers() async throws {
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let empty = try await trackerServer(group: group, peers: Data())
+        let offered = Data([127, 0, 0, 1, 0x1A, 0xE1])
+        let populated = try await trackerServer(group: group, peers: offered)
+        do {
+            let manager = TrackerManager(tiers: [[trackerURL(empty)], [trackerURL(populated)], [trackerURL(populated)]], group: group)
+            let response = try await manager.announce(params: AnnounceParams(
+                infoHash: InfoHash.v1(from: Data("test".utf8)), peerID: generatePeerID(), port: 6881, left: 1))
+            XCTAssertEqual(response.peers.count, 1)
+            XCTAssertEqual(response.peers.first?.0, "127.0.0.1")
+            XCTAssertEqual(response.peers.first?.1, 6881)
+        } catch {
+            try? await empty.close().get(); try? await populated.close().get()
+            try? await group.shutdownGracefully()
+            throw error
+        }
+        try await empty.close().get(); try await populated.close().get()
+        try await group.shutdownGracefully()
+    }
+
+    func testMagnetAnnouncesAsDownloaderBeforeMetadata() async throws {
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let received = TrackerRequestProbe()
+        let server = try await trackerServer(group: group, peers: Data(), received: received)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let hash = InfoHash.v1(from: Data("magnet-test".utf8))
+        var uri = URLComponents()
+        uri.scheme = "magnet"
+        uri.queryItems = [URLQueryItem(name: "xt", value: "urn:btih:" + hash.description),
+                          URLQueryItem(name: "tr", value: trackerURL(server))]
+        let magnet = try XCTUnwrap(MagnetLink(uri: uri.string!))
+        let handle = TorrentHandle(params: AddTorrentParams(magnetLink: magnet, savePath: root.path),
+                                   settings: SessionSettings(), group: group)
+        do {
+            try await handle.start()
+            let deadline = Date().addingTimeInterval(5)
+            while received.request == nil && Date() < deadline { try await Task.sleep(for: .milliseconds(20)) }
+            let request = try XCTUnwrap(received.request)
+            XCTAssertTrue(request.contains("left=1"), "Unknown metadata must not advertise a completed download.")
+            let status = await handle.status()
+            XCTAssertEqual(status.state, .downloadingMetadata)
+        } catch {
+            await handle.pause(); try? await server.close().get(); try? await group.shutdownGracefully()
+            throw error
+        }
+        await handle.pause(); try await server.close().get(); try await group.shutdownGracefully()
+    }
+
+    func testDHTLookupDiscoversPeerWithImmediateUDPResponse() async throws {
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        let server = try await DatagramBootstrap(group: group).channelInitializer { channel in
+            channel.pipeline.addHandler(LocalDHTResponse())
+        }.bind(host: "127.0.0.1", port: 0).get()
+        let node = DHTNode(port: 0, group: group)
+        do {
+            try await node.start(bootstrap: false)
+            await node.addNode(DHTNodeEntry(id: .random(), address: "127.0.0.1",
+                                          port: UInt16(server.localAddress!.port!)))
+            let found = try await DHTTraversal(dhtNode: node).getPeers(infoHash: InfoHash.v1(from: Data("test".utf8)))
+            XCTAssertEqual(found.count, 1)
+            XCTAssertEqual(found.first?.0, "127.0.0.1")
+            XCTAssertEqual(found.first?.1, 6881)
+        } catch {
+            await node.stop(); try? await server.close().get(); try? await group.shutdownGracefully()
+            throw error
+        }
+        await node.stop(); try await server.close().get(); try await group.shutdownGracefully()
+    }
+
+    private func trackerURL(_ server: Channel) -> String {
+        "http://127.0.0.1:\(server.localAddress!.port!)/announce"
+    }
+
+    private func trackerServer(group: EventLoopGroup, peers: Data,
+                               received: TrackerRequestProbe? = nil) async throws -> Channel {
+        var body = Data("d8:intervali30e5:peers\(peers.count):".utf8)
+        body.append(peers); body.append(Data("e".utf8))
+        let response = body
+        return try await ServerBootstrap(group: group).childChannelInitializer { channel in
+            channel.pipeline.addHandler(LocalTrackerResponse(body: response, probe: received))
+        }.bind(host: "127.0.0.1", port: 0).get()
+    }
+
     private func withStreamingHandle(payload: Data, pieceLength: Int,
                                      files: [TorrentInfo.FileEntry]? = nil,
                                      allowedPieces: Set<Int>, corruptReplies: Bool = false,
@@ -349,6 +445,54 @@ final class TorrentDownloadRegressionTests: XCTestCase {
         try await group.shutdownGracefully()
     }
 
+}
+
+private final class LocalDHTResponse: ChannelInboundHandler {
+    typealias InboundIn = AddressedEnvelope<ByteBuffer>
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        var envelope = unwrapInboundIn(data)
+        guard let bytes = envelope.data.readBytes(length: envelope.data.readableBytes),
+              let message = try? DHTMessage.decode(from: Data(bytes)),
+              case .query(let txID, _, _) = message else { return }
+        let response = DHTMessage.response(transactionID: txID, values: [
+            (key: Data("id".utf8), value: .string(Data(repeating: 1, count: 20))),
+            (key: Data("values".utf8), value: .list([.string(Data([127,0,0,1,0x1A,0xE1]))]))
+        ]).encode()
+        var buffer = context.channel.allocator.buffer(capacity: response.count)
+        buffer.writeBytes(response)
+        context.writeAndFlush(NIOAny(AddressedEnvelope(remoteAddress: envelope.remoteAddress, data: buffer)), promise: nil)
+    }
+}
+
+private final class TrackerRequestProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: String?
+    var request: String? { lock.lock(); defer { lock.unlock() }; return value }
+    func record(_ request: String) { lock.lock(); value = request; lock.unlock() }
+}
+
+private final class LocalTrackerResponse: ChannelInboundHandler {
+    typealias InboundIn = ByteBuffer
+    private let body: Data
+    private let probe: TrackerRequestProbe?
+    private var bytes = Data()
+    private var responded = false
+    init(body: Data, probe: TrackerRequestProbe?) { self.body = body; self.probe = probe }
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        var buffer = unwrapInboundIn(data)
+        if let incoming = buffer.readBytes(length: buffer.readableBytes) { bytes.append(contentsOf: incoming) }
+        guard !responded, let request = String(data: bytes, encoding: .utf8),
+              request.contains("\r\n\r\n") else { return }
+        responded = true
+        probe?.record(request)
+        var response = Data("HTTP/1.1 200 OK\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n".utf8)
+        response.append(body)
+        var outbound = context.channel.allocator.buffer(capacity: response.count)
+        outbound.writeBytes(response)
+        let sent = context.eventLoop.makePromise(of: Void.self)
+        context.writeAndFlush(NIOAny(outbound), promise: sent)
+        sent.futureResult.whenComplete { _ in context.close(promise: nil) }
+    }
 }
 
 private final class StreamingTestSeeder: ChannelInboundHandler {
@@ -477,4 +621,5 @@ private final class LocalTestSeeder: ChannelInboundHandler {
         context.writeAndFlush(NIOAny(buffer), promise: nil)
     }
 }
+
 

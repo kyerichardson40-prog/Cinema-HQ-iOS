@@ -41,11 +41,15 @@ struct ProviderStream: Decodable, Identifiable {
     }
     var trackers: [String] {
         let offered = (sources ?? []).filter { $0.hasPrefix("tracker:") }.map { String($0.dropFirst(8)) }
-        let defaults = ["udp://tracker.opentrackr.org:1337/announce", "udp://open.stealth.si:80/announce"]
-        return Array(Set((offered + defaults).filter {
+        let defaults = ["udp://tracker.opentrackr.org:1337/announce", "udp://open.stealth.si:80/announce",
+                        "https://tracker.webtorrent.io/announce"]
+        var seen = Set<String>()
+        let valid = offered.filter {
             guard let url = URL(string: $0), let host = url.host, !host.isEmpty else { return false }
-            return ["udp", "https"].contains(url.scheme?.lowercased() ?? "")
-        })).sorted().prefix(12).map { $0 }
+            return ["udp", "https"].contains(url.scheme?.lowercased() ?? "") &&
+                url.user == nil && url.password == nil && seen.insert($0).inserted
+        }
+        return (Array(valid.filter { !defaults.contains($0) }.prefix(9)) + defaults)
     }
 }
 
@@ -248,4 +252,5 @@ struct APKSourceView: View {
         if generation == requestID { loading = false }
     }
 }
+
 
