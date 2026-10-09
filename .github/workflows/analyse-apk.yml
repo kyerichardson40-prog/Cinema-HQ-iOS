@@ -47,8 +47,8 @@ jobs:
           apktool d -f /tmp/cinema.apk -o /tmp/apk-resources > analysis-output/apktool.log 2>&1 || true
           jadx --no-res -d /tmp/apk-java /tmp/cinema.apk > analysis-output/jadx.log 2>&1 || true
           cp /tmp/apk-resources/AndroidManifest.xml analysis-output/AndroidManifest.xml 2>/dev/null || true
-          find /tmp/apk-java -type f -name '*.java' | sed 's#^/tmp/apk-java/##' | head -n 2000 > analysis-output/class-index.txt || true
-          grep -RhiE 'ExoPlayer|MediaPlayer|okhttp|retrofit|m3u8|\.mpd|WebView|torrent|peer.?to.?peer' /tmp/apk-java --include='*.java' | head -n 200 > analysis-output/technology-hints.txt || true
+          find /tmp/apk-java -type f -name '*.java' | sed 's#^/tmp/apk-java/##' | sed -n '1,2000p' > analysis-output/class-index.txt || true
+          grep -RhiE 'ExoPlayer|MediaPlayer|okhttp|retrofit|m3u8|\.mpd|WebView|torrent|peer.?to.?peer' /tmp/apk-java --include='*.java' | sed -n '1,200p' > analysis-output/technology-hints.txt || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
