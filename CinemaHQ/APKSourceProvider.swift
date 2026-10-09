@@ -71,7 +71,7 @@ struct TorrentVideoSource {
     init?(stream: ProviderStream, title: String) {
         guard let hash = stream.validHash else { return nil }
         self.title = title; providerName = stream.provider.rawValue
-        sizeDescription = "File size will be checked before downloading."
+        sizeDescription = "File size will be checked before streaming."
         creditLabel = "Source: " + stream.provider.rawValue
         creditURL = stream.provider.baseURL
         location = .magnet(hash, stream.fileIdx, stream.trackers)
@@ -215,8 +215,7 @@ struct APKSourceView: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(stream.label).font(.headline)
                                 Text(stream.details).font(.caption).foregroundStyle(.secondary)
-                                Label(stream.directURL == nil ? "Download and play" : "Play video",
-                                      systemImage: stream.directURL == nil ? "arrow.down.circle" : "play.circle")
+                                Label("Play video", systemImage: "play.circle")
                                     .font(.caption)
                             }
                         }
@@ -226,7 +225,7 @@ struct APKSourceView: View {
     private var sourceInformation: some View {
         Section("About sources") {
                     Text("These providers are referenced by the Android APK. Results and availability are controlled by each provider.")
-                    Text("Torrent videos must download completely. MP4, M4V and MOV files can be played; other formats are not supported yet.")
+                    Text("Torrent videos play while downloading. Seeking may pause briefly while new pieces arrive. MP4, M4V and MOV files can be played; other formats are not supported yet.")
                     Text("Only play videos you have permission to access. Peers can see your IP address while connected.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
@@ -249,3 +248,4 @@ struct APKSourceView: View {
         if generation == requestID { loading = false }
     }
 }
+

@@ -14,6 +14,11 @@ targets:
     type: application
     platform: iOS
     sources: [CinemaHQ]
+    info:
+      path: CinemaHQ/Info.plist
+      properties:
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     dependencies:
       - package: SwiftTorrent
     settings:
@@ -32,3 +37,4 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: 'YES'
+

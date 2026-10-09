@@ -232,7 +232,7 @@ struct TitleDetailView: View {
                             Label("Play", systemImage: "play.fill").frame(maxWidth: .infinity)
                         }.buttonStyle(.borderedProminent)
                         Text("Free film • WebTorrent").font(.headline)
-                        Text("Download about \(available.sizeMB) MB from peers, then play. Keep the app open while downloading.")
+                        Text("Watch while about \(available.sizeMB) MB arrives from peers. Keep the app open while watching.")
                             .foregroundStyle(.secondary)
                         Link("Blender Foundation • Film credits and licence", destination: available.creditURL)
                     } else {
@@ -303,14 +303,22 @@ struct PlaybackLink: Identifiable {
 struct StreamPlayerView: View {
     @State private var player: AVPlayer
     @State private var playbackError: String?
+    @State private var buffering = true
 
     init(url: URL) {
-        _player = State(initialValue: AVPlayer(url: url))
+        let item = AVPlayerItem(url: url)
+        item.preferredForwardBufferDuration = 8
+        let player = AVPlayer(playerItem: item)
+        player.automaticallyWaitsToMinimizeStalling = false
+        _player = State(initialValue: player)
     }
 
     var body: some View {
         VStack {
             VideoPlayer(player: player)
+            if buffering && playbackError == nil {
+                ProgressView("Buffering video…").padding()
+            }
             if let playbackError {
                 Text(playbackError)
                     .foregroundStyle(.secondary)
@@ -323,6 +331,9 @@ struct StreamPlayerView: View {
             if status == .failed {
                 playbackError = "This video could not be played. Check the link and try again."
             }
+        }
+        .onReceive(player.publisher(for: \.timeControlStatus)) { status in
+            buffering = status == .waitingToPlayAtSpecifiedRate
         }
         .onReceive(NotificationCenter.default.publisher(for: .AVPlayerItemFailedToPlayToEndTime)) { notification in
             guard let item = notification.object as? AVPlayerItem,
@@ -559,3 +570,4 @@ struct TMDBConnectionView: View {
         }
     }
 }
+

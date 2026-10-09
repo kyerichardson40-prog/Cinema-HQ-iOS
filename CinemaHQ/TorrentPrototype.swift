@@ -19,6 +19,7 @@ struct TorrentPrototypeView: View {
         _download = StateObject(wrappedValue: TorrentPrototype(source: torrent))
     }
     @State private var playing = false
+    @State private var startedOnce = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
@@ -27,22 +28,20 @@ struct TorrentPrototypeView: View {
             Form {
                 Section(source.title) {
                     Text(libraryPlayback ? source.providerName : "Torrent playback test").font(.headline)
-                    Text("Download from peers, then play on your iPhone. \(source.sizeDescription) Keep the app open; Wi-Fi is recommended.")
+                    Text("Start watching as the video arrives from peers. \(source.sizeDescription) Keep the app open; Wi-Fi is recommended.")
                     Text(download.message).foregroundStyle(.secondary)
                     if download.running {
                         ProgressView(value: download.progress)
                         Text("\(Int(download.progress * 100))% • \(download.peers) peer connections")
                             .font(.caption).monospacedDigit()
-                        Button("Cancel", role: .destructive) { download.cancel() }
-                    } else if download.video != nil {
-                        Button("Play downloaded video") { playing = true }
-                        Button("Delete download", role: .destructive) { download.clear() }
+                        if download.video != nil { Button("Watch video") { playing = true } }
+                        Button("Stop", role: .destructive) { download.cancel() }
                     } else {
-                        Button(libraryPlayback ? "Download and play" : "Download test video") { download.start() }
+                        Button(libraryPlayback ? "Play" : "Stream test video") { download.start() }
                     }
                 }
                 Section(libraryPlayback ? "Source and credits" : "About this test") {
-                    Text("The complete video is downloaded and verified before playback.")
+                    Text("Playback starts once the opening video data is ready. Seeking fetches the pieces needed at that point. Only verified pieces reach the player.")
                     Text("Peers can see your IP address while connected.")
                         .font(.footnote).foregroundStyle(.secondary)
                     Link(source.creditLabel,
@@ -58,10 +57,18 @@ struct TorrentPrototypeView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) {
                 Button("Done") { download.cancel(); dismiss() }
             } }
-            .sheet(isPresented: $playing) {
+            .fullScreenCover(isPresented: $playing, onDismiss: { download.cancel() }) {
                 if let url = download.video {
                     NavigationStack {
-                        StreamPlayerView(url: url)
+                        VStack(spacing: 0) {
+                            StreamPlayerView(url: url)
+                            Text(download.message).font(.caption).foregroundStyle(.secondary).padding(.horizontal)
+                            if download.progress < 1 {
+                                ProgressView(value: download.progress).padding(.horizontal)
+                                Text("\(Int(download.progress * 100))% downloaded • \(download.peers) peers")
+                                    .font(.caption).monospacedDigit().padding(.bottom, 8)
+                            }
+                        }
                             .navigationTitle(source.title)
                             .toolbar { ToolbarItem(placement: .confirmationAction) {
                                 Button("Done") { playing = false }
@@ -70,12 +77,18 @@ struct TorrentPrototypeView: View {
                 }
             }
             .onChange(of: scenePhase) { _, phase in
-                if phase != .active && download.running { download.cancel() }
+                if phase == .background && download.running { download.cancel() }
             }
             .onChange(of: download.video) { _, url in
-                if libraryPlayback && url != nil { playing = true }
+                playing = url != nil
             }
-            .onDisappear { download.cancel() }
+            .onDisappear { if !playing { download.cancel() } }
+            .task {
+                if libraryPlayback && !startedOnce {
+                    startedOnce = true
+                    download.start()
+                }
+            }
         }
     }
 }
@@ -86,9 +99,10 @@ final class TorrentPrototype: ObservableObject {
     @Published private(set) var progress = 0.0
     @Published private(set) var peers = 0
     @Published private(set) var video: URL?
-    @Published private(set) var message = "Ready to download."
+    @Published private(set) var message = "Ready to stream."
     private var task: Task<Void, Never>?
     private var folder: URL?
+    private var stopping = false
     private let source: TorrentVideoSource
 
     init(source: TorrentVideoSource = TorrentVideoSource(free: FreeMovieProvider.sources[0])) {
@@ -99,6 +113,7 @@ final class TorrentPrototype: ObservableObject {
         guard !running else { return }
         clear()
         running = true
+        stopping = false
         progress = 0
         peers = 0
         message = "Fetching video source…"
@@ -106,8 +121,8 @@ final class TorrentPrototype: ObservableObject {
     }
 
     func cancel() {
-        guard running else { return }
-        message = "Stopping peer connections…"
+        guard running && !stopping else { return }
+        message = "Stopping playback…"
         task?.cancel()
     }
 
@@ -116,12 +131,12 @@ final class TorrentPrototype: ObservableObject {
         video = nil
         if let folder { try? FileManager.default.removeItem(at: folder) }
         folder = nil
-        message = "Ready to download."
+        message = "Ready to stream."
     }
 
     private func run() async {
         var session: SwiftTorrent.Session?
-        var completedURL: URL?
+        var server: TorrentStreamingServer?
         do {
             let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
                 .appendingPathComponent("TorrentTests", isDirectory: true)
@@ -174,11 +189,34 @@ final class TorrentPrototype: ObservableObject {
                 videoPath = try Self.selectedVideo(info: info, fileIndex: fileIndex)
             }
             try Task.checkCancellation()
+            guard let fileIndex = info.files.firstIndex(where: { $0.path == videoPath }),
+                  info.files[fileIndex].length > 0 else { throw PrototypeError.sourceFile }
+            let file = info.files[fileIndex]
+            // Opening atoms may be at either end of an ordinary MP4.
+            let headPriority = UUID(), tailPriority = UUID()
+            let bootstrapBytes = Int(min(file.length, 1_048_576))
+            try await handle.setStreamingPriority(id: headPriority, fileIndex: fileIndex,
+                offset: 0, length: bootstrapBytes)
+            try await handle.setStreamingPriority(id: tailPriority, fileIndex: fileIndex,
+                offset: max(0, file.length - Int64(bootstrapBytes)), length: bootstrapBytes, lookAhead: 0)
+            let contentType = URL(fileURLWithPath: videoPath).pathExtension.lowercased() == "mov" ?
+                "video/quicktime" : "video/mp4"
+            let stream = TorrentStreamingServer(fileLength: file.length, contentType: contentType) { range in
+                try await handle.readVerifiedRange(fileIndex: fileIndex, offset: range.lowerBound,
+                    length: Int(range.upperBound - range.lowerBound))
+            }
+            server = stream
+            let playbackURL = try await stream.start()
+            try Task.checkCancellation()
+            // Publish a range-capable URL immediately; AVPlayer drives buffering and seek priorities.
+            video = playbackURL
+            message = "Buffering video from peers…"
             var lastProgress = Date()
             var best = 0.0
-            let started = Date()
+            var bootstrapRemoved = false
             while true {
                 try Task.checkCancellation()
+                if let failure = await handle.getStreamingFailure() { throw failure }
                 let status = await handle.status()
                 progress = status.progress
                 peers = status.numPeers
@@ -186,40 +224,53 @@ final class TorrentPrototype: ObservableObject {
                     best = status.progress
                     lastProgress = Date()
                 }
-                message = peers == 0 ? "Waiting for peers…" :
-                    (progress > 0 ? "Downloading verified pieces…" : "Connected, waiting for video data…")
-                // Wait for the engine's completion transition, not just preallocated file size.
-                if status.state == .seeding { break }
-                if Date().timeIntervalSince(lastProgress) > 120 ||
-                   Date().timeIntervalSince(started) > 1800 { throw PrototypeError.noProgress }
+                if !bootstrapRemoved && best > 0 {
+                    await handle.removeStreamingPriority(id: headPriority)
+                    await handle.removeStreamingPriority(id: tailPriority)
+                    bootstrapRemoved = true
+                }
+                if status.state == .seeding {
+                    message = "Video fully downloaded. Keep watching."
+                    progress = 1
+                } else if Date().timeIntervalSince(lastProgress) > 120 {
+                    message = "Waiting for more video data. Try another source if playback stalls."
+                } else {
+                    message = peers == 0 ? "Waiting for peers…" : "Streaming • downloading as you watch"
+                }
+                // Keep the range server and disk store alive for the entire player session.
                 try await Task.sleep(nanoseconds: 1_000_000_000)
             }
-            message = "Checking the downloaded video…"
-            // The library ignores disk-write failures. Verify disk contents independently.
-            completedURL = try await Task.detached {
-                try Self.verifyFiles(info: info, root: root)
-                return root.appendingPathComponent(videoPath)
-            }.value
-            try Task.checkCancellation()
         } catch {
-            message = Task.isCancelled ? "Download cancelled." :
-                ((error as? PrototypeError)?.description ??  "Download failed: " + error.localizedDescription)
+            message = Task.isCancelled ? "Playback stopped." :
+                Self.playbackMessage(for: error)
         }
+        stopping = true
+        server?.stop()
+        video = nil
         if let session {
             do { try await session.shutdown() }
-            catch { message = "Could not stop the torrent engine: " + error.localizedDescription; completedURL = nil }
+            catch { message = "Could not stop the torrent engine: " + error.localizedDescription }
         }
-        if !Task.isCancelled, let completedURL {
-            video = completedURL
-            progress = 1
-            message = "Download verified. Ready to play."
-        } else if let folder {
+        if let folder {
             try? FileManager.default.removeItem(at: folder)
             self.folder = nil
-            if Task.isCancelled { message = "Download cancelled." }
         }
         running = false
         task = nil
+    }
+
+    nonisolated private static func playbackMessage(for error: Error) -> String {
+        if let error = error as? PrototypeError { return error.description }
+        if let error = error as? TorrentStreamingError {
+            switch error {
+            case .diskFailure: return "The video could not be saved to temporary storage. Free some space and try again."
+            case .integrity: return "The video data failed verification. Please choose another source or retry."
+            case .timeout: return "The needed video data did not arrive in time. Try another source."
+            case .stopped: return "Playback stopped."
+            case .invalidRange, .notReady: return "This torrent could not be prepared for playback."
+            }
+        }
+        return "Could not stream this source: " + error.localizedDescription
     }
 
     private func waitForDetails(handle: TorrentHandle) async throws -> TorrentInfo {
@@ -313,3 +364,4 @@ private enum PrototypeError: Error {
         }
     }
 }
+
