@@ -54,7 +54,7 @@ struct TorrentPrototypeView: View {
                     }
                 }
             }
-            .onChange(of: scenePhase) { phase in
+            .onChange(of: scenePhase) { _, phase in
                 if phase != .active && download.running { download.cancel() }
             }
             .onDisappear { download.cancel() }
@@ -144,7 +144,8 @@ final class TorrentPrototype: ObservableObject {
                     best = status.progress
                     lastProgress = Date()
                 }
-                message = peers == 0 ? "Waiting for peers…" : "Downloading verified pieces…"
+                message = peers == 0 ? "Waiting for peers…" :
+                    (progress > 0 ? "Downloading verified pieces…" : "Connected, waiting for video data…")
                 // Wait for the engine's completion transition, not just preallocated file size.
                 if status.state == .seeding { break }
                 if Date().timeIntervalSince(lastProgress) > 120 ||

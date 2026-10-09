@@ -6,3 +6,5 @@
 DerivedData/
 .analysis/
 .DS_Store
+
+Vendor/SwiftTorrent/

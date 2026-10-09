@@ -8,8 +8,7 @@ settings:
     CODE_SIGNING_ALLOWED: 'NO'
 packages:
   SwiftTorrent:
-    url: https://github.com/warppipe/swift-torrent.git
-    revision: 79ab342c50621d69bce0d6f61228fcaf70c4ae48
+    path: Vendor/SwiftTorrent
 targets:
   CinemaHQ:
     type: application
