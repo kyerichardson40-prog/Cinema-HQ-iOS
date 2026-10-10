@@ -79,6 +79,10 @@ struct LibraryView: View {
                         }.tint(savedOnly ? .orange : .primary)
                     }.font(.subheadline)
 
+                    if selected == nil && !showingVideo && !showingTorrentTest && !showingAPKSources && !showingConnection {
+                        LibraryAdvertisement()
+                    }
+
                     if query.isEmpty && category == "All" && genre == "All genres" && !savedOnly,
                        let featured = catalogue.items.first {
                         Button { selected = featured } label: {

@@ -12,6 +12,9 @@ packages:
   VLCKit:
     url: https://github.com/videolan/vlckit.git
     revision: 2e0868f5ed40fe59cd92f377645fdcc260c6e759
+  GoogleMobileAds:
+    url: https://github.com/googleads/swift-package-manager-google-mobile-ads.git
+    revision: d1fa1f5c1dfe3b43d56c73f4de388ad3316618bc
 targets:
   CinemaHQ:
     type: application
@@ -20,17 +23,21 @@ targets:
     info:
       path: CinemaHQ/Info.plist
       properties:
+        GADApplicationIdentifier: ca-app-pub-3940256099942544~1458002511
+        GADDelayAppMeasurementInit: true
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
     dependencies:
       - package: SwiftTorrent
       - package: VLCKit
+      - package: GoogleMobileAds
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.cinemahq.ios
         GENERATE_INFOPLIST_FILE: 'YES'
         INFOPLIST_KEY_UILaunchScreen_Generation: 'YES'
         TARGETED_DEVICE_FAMILY: '1,2'
+        OTHER_LDFLAGS: '$(inherited) -ObjC'
   CinemaHQTests:
     type: bundle.unit-test
     platform: iOS
@@ -39,6 +46,7 @@ targets:
       - target: CinemaHQ
       - package: SwiftTorrent
       - package: VLCKit
+      - package: GoogleMobileAds
     settings:
       base:
         GENERATE_INFOPLIST_FILE: 'YES'
