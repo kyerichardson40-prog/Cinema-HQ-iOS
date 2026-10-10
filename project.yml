@@ -46,7 +46,6 @@ targets:
       - target: CinemaHQ
       - package: SwiftTorrent
       - package: VLCKit
-      - package: GoogleMobileAds
     settings:
       base:
         GENERATE_INFOPLIST_FILE: 'YES'
