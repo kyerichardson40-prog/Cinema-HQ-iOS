@@ -41,6 +41,8 @@ jobs:
         shell: bash
         env:
           CARGO_BUILD_JOBS: "4"
+          # SDL2 uses an older cmake_minimum_required; CMake >=4 rejects that by default.
+          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
         run: |
           set -o pipefail
           xcodebuild \
