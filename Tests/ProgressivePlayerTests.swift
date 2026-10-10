@@ -27,6 +27,7 @@ final class ProgressivePlayerTests: XCTestCase {
             try await Task.sleep(nanoseconds: 100_000_000)
         }
         XCTAssertNil(playback.error)
+        if playback.seconds < 0.5 { print("HEVC startup read requests: \(await source.requestSummary())") }
         XCTAssertGreaterThanOrEqual(playback.seconds, 0.5, "HEVC MKV must start with later pieces unavailable.")
         XCTAssertGreaterThan(playback.player.media?.statistics.decodedVideo ?? 0, 0, "The HEVC decoder must actually decode video.")
         let originalPlayer = playback.player
@@ -185,6 +186,7 @@ private actor PartialMovie {
     private let prefixEnd: Int64
     private let tailStart: Int64
     private var served: [Range<Int64>] = []
+    private var requested: [Range<Int64>] = []
 
     init(bytes: Data) {
         self.bytes = bytes
@@ -194,6 +196,7 @@ private actor PartialMovie {
     }
 
     func read(_ range: Range<Int64>) async throws -> Data {
+        requested.append(range)
         guard range.lowerBound >= 0, range.upperBound <= Int64(bytes.count) else {
             throw NSError(domain: "PartialMovie", code: 1)
         }
@@ -207,6 +210,7 @@ private actor PartialMovie {
     }
 
     func unavailableByteCount() -> Int64 { tailStart - prefixEnd }
+    func requestSummary() -> String { "file=\(bytes.count), prefix=\(prefixEnd), tail=\(tailStart), requests=\(requested)" }
 
     func servedByteCount() -> Int64 {
         var total: Int64 = 0

@@ -24,6 +24,11 @@ final class StreamPlayback: NSObject, ObservableObject, VLCMediaPlayerDelegate {
         player.delegate = self
         let media = VLCMedia(url: url)
         media?.addOption(":network-caching=1500")
+        if url.pathExtension.lowercased() == "mkv" {
+            // FFmpeg defers the Matroska cue index until a seek; VLC's native
+            // demuxer loads it before playback, which can wait on distant pieces.
+            media?.addOption(":demux=avformat")
+        }
         player.media = media
     }
 

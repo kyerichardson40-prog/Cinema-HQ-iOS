@@ -34,10 +34,12 @@ final class APKProviderTests: XCTestCase {
         let mp4 = try metadata(file: "video.mp4")
         XCTAssertEqual(try TorrentPrototype.selectedVideo(info: mp4, fileIndex: 0), "Film/video.mp4")
         XCTAssertThrowsError(try TorrentPrototype.selectedVideo(info: mp4, fileIndex: 1))
-        XCTAssertThrowsError(try TorrentPrototype.selectedVideo(info: metadata(file: "video.mkv"), fileIndex: nil))
+        XCTAssertEqual(try TorrentPrototype.selectedVideo(info: metadata(file: "video.mkv"), fileIndex: nil), "Film/video.mkv")
+        XCTAssertThrowsError(try TorrentPrototype.selectedVideo(info: metadata(file: "video.txt"), fileIndex: nil))
         let escaping = try metadata(file: "../video.mp4")
         XCTAssertThrowsError(try TorrentPrototype.validate(info: escaping,
             root: URL(fileURLWithPath: "/tmp/provider"),
             videoPath: "Film/../video.mp4", maximumSize: 16_000_000_000))
     }
 }
+
