@@ -1,0 +1,90 @@
+name: Build iDared32bit unsigned IPA
+
+on:
+  push:
+    branches:
+      - build-idared32bit
+    paths:
+      - .github/workflows/build-idared32bit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: iOS arm64 IPA
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - name: Check out upstream iDared32bit with submodules
+        uses: actions/checkout@v4
+        with:
+          repository: iDared32bit-emu/iDared32bit
+          ref: idared32bit
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Identify source revision and build tools
+        run: |
+          git rev-parse HEAD | tee upstream-commit.txt
+          xcodebuild -version
+          xcodebuild -list -project iphone/touchHLE.xcodeproj
+          git submodule status
+
+      - name: Set up Rust for physical iOS devices
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Compile iDared 32bit for iPhone and iPad (unsigned)
+        shell: bash
+        env:
+          CARGO_BUILD_JOBS: "4"
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project iphone/touchHLE.xcodeproj \
+            -scheme "iDared 32bit" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -sdk iphoneos \
+            -derivedDataPath "$RUNNER_TEMP/idared-derived-data" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            build 2>&1 | tee "$RUNNER_TEMP/idared-build.log"
+
+      - name: Package actual compiled .app into unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/idared-derived-data/Build/Products/Release-iphoneos/iDared 32bit.app"
+          test -d "$app" || { echo "Compiled app not found: $app"; exit 1; }
+          test -f "$app/Info.plist" || { echo "Compiled app missing Info.plist"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/idared-ipa/Payload"
+          ditto "$app" "$RUNNER_TEMP/idared-ipa/Payload/iDared 32bit.app"
+          cd "$RUNNER_TEMP/idared-ipa"
+          zip -q -r -y "$GITHUB_WORKSPACE/iDared32bit-unsigned.ipa" Payload
+          ls -lh "$GITHUB_WORKSPACE/iDared32bit-unsigned.ipa"
+          unzip -t "$GITHUB_WORKSPACE/iDared32bit-unsigned.ipa" | tail -n 2
+
+      - name: Upload IPA and source revision
+        uses: actions/upload-artifact@v4
+        with:
+          name: iDared32bit-unsigned-ipa
+          path: |
+            iDared32bit-unsigned.ipa
+            upstream-commit.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iDared32bit-build-log
+          path: ${{ runner.temp }}/idared-build.log
+          if-no-files-found: ignore
+          retention-days: 7
