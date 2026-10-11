@@ -13,11 +13,32 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Download IPA
-        env:
-          DOWNLOAD_URL: 'https://download1652.mediafire.com/iim4qme9dlrgqgbvuGVtmdUzBBUUi9fBCcNMoH5HvP2fDdindfNSkDPnBRJAE5SodmVv0qGII6a3VdgnXJxzPkEQyRekEnv5w6iZprZskp8jT_nXvh_fFpWRq-o82w75vieVsEmHVatOf75hQgNrBMzT9NG1tSOpEQuqdit0FmP2vQ/if9qq91yfrxgu4r/Spider-Man_Unlimited_v5.0.0.ipa'
+      - name: Obtain fresh link and download IPA
         run: |
-          curl --fail --location --retry 2 --connect-timeout 30 --max-time 600 "$DOWNLOAD_URL" -o Spider-Man_Unlimited_v5.0.0.ipa
+          python3 - <<'PY'
+          import urllib.request, urllib.parse, http.cookiejar, shutil
+          from html.parser import HTMLParser
+          page = "https://www.mediafire.com/file/if9qq91yfrxgu4r/Spider-Man_Unlimited_v5.0.0.ipa/file"
+          opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+          class Parser(HTMLParser):
+              url = None
+              def handle_starttag(self, tag, attrs):
+                  attrs = dict(attrs)
+                  if tag == "a" and attrs.get("id") == "downloadButton":
+                      self.url = attrs.get("href")
+          with opener.open(page, timeout=60) as response:
+              text = response.read().decode("utf-8", "replace")
+          parser = Parser()
+          parser.feed(text)
+          if not parser.url:
+              print(text[:4000])
+              raise SystemExit("No download button found")
+          target = urllib.parse.urlparse(parser.url)
+          if target.scheme != "https" or not (target.hostname or "").endswith(".mediafire.com"):
+              raise SystemExit("Unexpected download host")
+          with opener.open(parser.url, timeout=120) as response, open("Spider-Man_Unlimited_v5.0.0.ipa", "wb") as output:
+              shutil.copyfileobj(response, output)
+          PY
       - name: Verify IPA archive
         run: |
           python3 - <<'PY'
