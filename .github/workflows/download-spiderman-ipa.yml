@@ -1,0 +1,40 @@
+name: Download Spider-Man IPA
+on:
+  push:
+    branches: [download-spiderman-ipa]
+    paths: [.github/workflows/download-spiderman-ipa.yml]
+permissions:
+  contents: read
+concurrency:
+  group: download-spiderman-ipa
+  cancel-in-progress: false
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download IPA
+        env:
+          DOWNLOAD_URL: 'https://download1652.mediafire.com/iim4qme9dlrgqgbvuGVtmdUzBBUUi9fBCcNMoH5HvP2fDdindfNSkDPnBRJAE5SodmVv0qGII6a3VdgnXJxzPkEQyRekEnv5w6iZprZskp8jT_nXvh_fFpWRq-o82w75vieVsEmHVatOf75hQgNrBMzT9NG1tSOpEQuqdit0FmP2vQ/if9qq91yfrxgu4r/Spider-Man_Unlimited_v5.0.0.ipa'
+        run: |
+          curl --fail --location --retry 2 --connect-timeout 30 --max-time 600 "$DOWNLOAD_URL" -o Spider-Man_Unlimited_v5.0.0.ipa
+      - name: Verify IPA archive
+        run: |
+          python3 - <<'PY'
+          import zipfile, pathlib, hashlib
+          path = pathlib.Path("Spider-Man_Unlimited_v5.0.0.ipa")
+          if not zipfile.is_zipfile(path):
+              raise SystemExit("Downloaded response is not a ZIP/IPA archive")
+          with zipfile.ZipFile(path) as archive:
+              if not any(name.startswith("Payload/") and ".app/" in name for name in archive.namelist()):
+                  raise SystemExit("Archive does not contain an iOS app Payload")
+          print("Size:", path.stat().st_size)
+          print("SHA256:", hashlib.file_digest(path.open("rb"), "sha256").hexdigest())
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Unlimited-v5.0.0-IPA
+          path: Spider-Man_Unlimited_v5.0.0.ipa
+          compression-level: 0
+          retention-days: 3
+          if-no-files-found: error
