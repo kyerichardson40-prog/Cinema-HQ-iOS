@@ -52,10 +52,17 @@ jobs:
           print("Size:", path.stat().st_size)
           print("SHA256:", hashlib.file_digest(path.open("rb"), "sha256").hexdigest())
           PY
+      - name: Split for artifact transfer
+        run: split -b 350M -d Spider-Man_Unlimited_v5.0.0.ipa ipa-part-
       - uses: actions/upload-artifact@v4
         with:
-          name: Spider-Man-Unlimited-v5.0.0-IPA
-          path: Spider-Man_Unlimited_v5.0.0.ipa
+          name: Spider-Man-IPA-part-00
+          path: ipa-part-00
           compression-level: 0
           retention-days: 3
-          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-IPA-part-01
+          path: ipa-part-01
+          compression-level: 0
+          retention-days: 3
