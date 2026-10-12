@@ -1,0 +1,44 @@
+name: Build Spider-Man Portal Test2
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/spiderman-portal-test2.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: spiderman-build-test2
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact Test1 input
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input output report
+          gh api /repos/${{ github.repository }}/actions/artifacts/11737460031/zip > input/artifact.zip
+          unzip -q input/artifact.zip -d input
+      - name: Renew baseline portal dates and verify IPA
+        shell: bash
+        run: |
+          python3 .github/scripts/patch-portal-test2.py input/Spider-Man_Unlimited_v5.0.0_Portal_Test1.ipa output/Spider-Man_Unlimited_v5.0.0_Portal_Test2.ipa report
+      - name: Upload Test2 IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Portal-Test2-IPA
+          path: output/*.ipa
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+      - name: Upload verification report
+        uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Portal-Test2-verification
+          path: report/
+          retention-days: 14
+          if-no-files-found: error
