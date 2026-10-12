@@ -1,0 +1,36 @@
+name: Build Spider-Man Test3 120 FPS
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/spiderman-fps-test3.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: spiderman-build-test3
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input output report
+          gh api /repos/${{ github.repository }}/actions/artifacts/11752741124/zip > input/artifact.zip
+          unzip -q input/artifact.zip -d input
+      - run: python3 .github/scripts/patch-fps-test3.py input/Spider-Man_Unlimited_v5.0.0_Portal_Test2.ipa output/Spider-Man_Unlimited_v5.0.0_Test3_120FPS.ipa report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Test3-120FPS-IPA
+          path: output/*.ipa
+          compression-level: 0
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Test3-verification-and-boss-assets
+          path: report/
+          retention-days: 14
