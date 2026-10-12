@@ -1,0 +1,64 @@
+name: Spider-Man IPA diagnostics
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/spiderman-diagnostics.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - name: Download exact IPA artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input report
+          gh api -H "Accept: application/vnd.github+json" /repos/${{ github.repository }}/actions/artifacts/11737460031/zip > input/artifact.zip
+          unzip -q input/artifact.zip -d input/extracted
+          find input/extracted -type f -maxdepth 4 -print
+      - name: Inspect IPA without executing it
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, zipfile, glob, plistlib, hashlib, re, json
+          from pathlib import Path
+          out=Path("report"); out.mkdir(exist_ok=True)
+          files=list(Path("input/extracted").rglob("*.ipa"))
+          if not files: raise SystemExit("No IPA in artifact")
+          ipa=files[0]
+          (out/"ipa_info.txt").write_text(f"IPA name: {ipa.name}\nSize: {ipa.stat().st_size}\nSHA256: {hashlib.sha256(ipa.read_bytes()).hexdigest()}\n")
+          with zipfile.ZipFile(ipa) as z:
+              names=z.namelist()
+              (out/"file_listing.txt").write_text("\n".join(f"{i.file_size:>12} {i.filename}" for i in z.infolist())+"\n")
+              plists=[n for n in names if re.fullmatch(r"Payload/[^/]+\.app/Info\.plist",n)]
+              if plists:
+                  info=plistlib.loads(z.read(plists[0]))
+                  safe={k:v for k,v in info.items() if k in ("CFBundleIdentifier","CFBundleExecutable","CFBundleVersion","CFBundleShortVersionString","MinimumOSVersion","UIRequiredDeviceCapabilities","NSAppTransportSecurity")}
+                  (out/"app_metadata.json").write_text(json.dumps(safe,indent=2,default=str))
+              executables=[n for n in names if re.search(r"Payload/[^/]+\.app/[^/]+$",n) and not n.endswith(".plist")]
+              candidates=[]
+              for n in executables:
+                  i=z.getinfo(n)
+                  if i.file_size>1000000: candidates.append((n,i.file_size))
+              (out/"binary_candidates.txt").write_text("\n".join(f"{size} {name}" for name,size in candidates))
+              # Search only URL-shaped strings in app binaries. Do not dump secrets, credentials, or tokens.
+              urls=set()
+              for n,size in candidates[:8]:
+                  if size>150000000: continue
+                  data=z.read(n)
+                  for m in re.finditer(rb'https?://[A-Za-z0-9._:/?=&%-]{8,180}',data):
+                      raw=m.group().decode("ascii","ignore")
+                      host=re.match(r'https?://([^/?#]+)',raw)
+                      if host: urls.add(host.group(1).lower())
+              (out/"network_hosts.txt").write_text("\n".join(sorted(urls))+"\n")
+          PY
+      - name: Upload small diagnostic report
+        uses: actions/upload-artifact@v4
+        with:
+          name: spiderman-diagnostic-report
+          path: report/
+          retention-days: 7
