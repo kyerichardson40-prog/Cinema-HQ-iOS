@@ -1,0 +1,59 @@
+{
+  "test": "Test6 tutorial death exit",
+  "input_sha256": "b1f35ea79e08ab6b6ec977e472311fbf75bddfdaeb0333d7e35a77f4e1cc45e3",
+  "output_sha256": "92638beefa04de64a1a791a4acf0e4b3f6ea396c50399f2bd8882bf980f98d60",
+  "binary_sha256": "a9f0b33e564e3e718f7b49130ae9e630f818f2c5019198cfccce75b9f9069f10",
+  "patch": {
+    "site": "0x44b90c",
+    "before": "1f010071",
+    "after": "c1d9ee17",
+    "cave": "0x2010",
+    "stub": "1f0100714c0000547c26111481261114",
+    "tutorial_positive_destination": "0x44ba20",
+    "ordinary_destination": "0x44ba08",
+    "normal_revive_cap_unchanged": true
+  },
+  "arm64_execution_tests": [
+    {
+      "tutorial_state": 0,
+      "destination": "0x44ba08",
+      "native_return_zero": false
+    },
+    {
+      "tutorial_state": 1,
+      "destination": "0x44ba20",
+      "native_return_zero": true
+    },
+    {
+      "tutorial_state": 2,
+      "destination": "0x44ba20",
+      "native_return_zero": true
+    },
+    {
+      "tutorial_state": 100,
+      "destination": "0x44ba20",
+      "native_return_zero": true
+    },
+    {
+      "tutorial_state": 2147483647,
+      "destination": "0x44ba20",
+      "native_return_zero": true
+    },
+    {
+      "tutorial_state": 4294967295,
+      "destination": "0x44ba08",
+      "native_return_zero": false
+    },
+    {
+      "tutorial_state": 2147483648,
+      "destination": "0x44ba08",
+      "native_return_zero": false
+    }
+  ],
+  "all_other_archive_entries_unchanged": true,
+  "fps_120_preserved": true,
+  "test5_portal_and_texture_fixes_preserved": true,
+  "save_files_modified": false,
+  "runtime_verified": false,
+  "behaviour": "Tutorial deaths return no-revive through the existing native mission-end flow. Ordinary mission revival and caps are unchanged. Tutorial progress is not marked complete."
+}
