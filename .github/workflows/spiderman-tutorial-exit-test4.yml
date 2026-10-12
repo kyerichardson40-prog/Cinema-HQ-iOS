@@ -1,0 +1,38 @@
+name: Build Spider-Man Test4 tutorial exit
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/spiderman-tutorial-exit-test4.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: spiderman-build-test4
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input output report
+          gh api /repos/${{ github.repository }}/actions/artifacts/11761199260/zip > input/artifact.zip
+          unzip -q input/artifact.zip -d input
+      - run: python3 .github/scripts/patch-tutorial-exit-test4.py input/Spider-Man_Unlimited_v5.0.0_Test3_120FPS.ipa output/Spider-Man_Unlimited_v5.0.0_Test4_Tutorial_Exit.ipa report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Test4-Tutorial-Exit-IPA
+          path: output/*.ipa
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Test4-verification
+          path: report/
+          retention-days: 14
+          if-no-files-found: error
