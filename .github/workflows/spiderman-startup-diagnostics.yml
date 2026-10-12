@@ -1,4 +1,5 @@
 name: Spider-Man startup diagnostics 2
+# Trace through embedded data in the executable.
 on:
   workflow_dispatch:
   push:
