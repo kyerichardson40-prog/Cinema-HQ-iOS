@@ -1,0 +1,30 @@
+name: Spider-Man texture repair inspection
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/spiderman-texture-repair-inspection.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: spiderman-readonly-diagnostics
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input report
+          gh api /repos/${{ github.repository }}/actions/artifacts/11766701218/zip > input/artifact.zip
+          unzip -q input/artifact.zip -d input
+      - run: python3 .github/scripts/inspect-texture-targets.py input report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-texture-repair-inspection
+          path: report/
+          retention-days: 14
