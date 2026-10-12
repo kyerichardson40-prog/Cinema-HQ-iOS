@@ -1,4 +1,4 @@
-import hashlib,io,json,plistlib,re,struct,sys,zipfile
+import copy,hashlib,io,json,plistlib,re,struct,sys,zipfile
 from pathlib import Path
 SOURCE_SHA='c194ce8b0063ebf42d0b9add720be8c7a6dc8fdeecdbae21e309d34468c57e75'
 BINARY_SHA='7da6f8b352e2f2803b615e6999c846a640f8f0784cee4ac454703818431e18d2'
@@ -19,7 +19,7 @@ def main():
   info=plistlib.loads(z.read(INFO));newinfo=dict(info);newinfo['CADisableMinimumFrameDurationOnPhone']=True
   info_bytes=plistlib.dumps(newinfo,fmt=plistlib.FMT_BINARY,sort_keys=False)
   with zipfile.ZipFile(output,'w') as out:
-   for item in z.infolist():out.writestr(item,patched if item.filename==BINARY else info_bytes if item.filename==INFO else z.read(item.filename))
+   for item in z.infolist():out.writestr(copy.copy(item),patched if item.filename==BINARY else info_bytes if item.filename==INFO else z.read(item.filename))
   with zipfile.ZipFile(output) as out:
    assert out.testzip() is None
    assert out.read(BINARY)==patched
