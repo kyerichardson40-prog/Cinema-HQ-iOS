@@ -1,0 +1,103 @@
+{
+  "test": "Test5 safe fixes",
+  "input_sha256": "a290559f906111e98b312e2c7f6d176262b1665edb44e076fd5c93bc2beaa523",
+  "output_sha256": "b1f35ea79e08ab6b6ec977e472311fbf75bddfdaeb0333d7e35a77f4e1cc45e3",
+  "binary_sha256": "abb50a357547be6e48f9774278adf262cd29232cd8fec590e2b43ef1313b3e43",
+  "portal_guard": {
+    "site": "0x56467c",
+    "branch": "6176ea97",
+    "cave": "0x2000",
+    "stub": "3f100071550080523530951ac0035fd6",
+    "invalid_tab_fallback": 2
+  },
+  "portal_dates": [
+    {
+      "category": "Unlimited",
+      "id": "unlimited_gacha_01",
+      "before": "2019-05-18",
+      "after": "2040-12-31"
+    },
+    {
+      "category": "Unlimited",
+      "id": "unlimited_gacha_02",
+      "before": "2019-11-23",
+      "after": "2040-12-31"
+    },
+    {
+      "category": "Unlimited",
+      "id": "unlimited_gacha_03",
+      "before": "2019-11-23",
+      "after": "2040-12-31"
+    },
+    {
+      "category": "MysteryBox",
+      "id": "mystery_box_gacha",
+      "before": "2019-04-05",
+      "after": "2040-12-31"
+    },
+    {
+      "category": "FixedPool",
+      "id": "special_gacha_01",
+      "before": "2040-12-31",
+      "after": "2019-12-31"
+    },
+    {
+      "category": "FixedPool",
+      "id": "special_gacha_02",
+      "before": "2020-01-01",
+      "after": "2040-12-31"
+    },
+    {
+      "category": "Loot",
+      "id": "loot_gacha_1",
+      "before": "2019-09-06",
+      "after": "2040-12-31"
+    },
+    {
+      "category": "Loot",
+      "id": "loot_gacha_2",
+      "before": "2019-11-23",
+      "after": "2040-12-31"
+    },
+    {
+      "category": "Loot",
+      "id": "loot_gacha_3",
+      "before": "2019-11-23",
+      "after": "2040-12-31"
+    }
+  ],
+  "texture_fallbacks": [
+    {
+      "archive": "Payload/Spiderman.app/data_final/file000002.dat",
+      "alias": "Jennix_S.TGA",
+      "source": "Jennix_S_low.TGA",
+      "source_sha256": "11b074043aad14abf63e80ba233d6100c6f326ad4b7774c3258cf7b565d5bb95",
+      "original_members_unchanged": true
+    },
+    {
+      "archive": "Payload/Spiderman.app/data_final/file000010.dat",
+      "alias": "Jennix_S.TGA",
+      "source": "Jennix_S_low.TGA",
+      "source_sha256": "11b074043aad14abf63e80ba233d6100c6f326ad4b7774c3258cf7b565d5bb95",
+      "original_members_unchanged": true
+    }
+  ],
+  "changed_entries": [
+    "Payload/Spiderman.app/data_final/file000002.dat",
+    "Payload/Spiderman.app/data_final/file000010.dat",
+    "Payload/Spiderman.app/Spiderman",
+    "Payload/Spiderman.app/data_final/InitialCRMFeed.dat"
+  ],
+  "fps_120_preserved": true,
+  "tutorial_exit_patch_preserved": true,
+  "original_members_verified": true,
+  "zip_crc_verified": true,
+  "save_files_modified": false,
+  "runtime_verified": false,
+  "limitations": [
+    "Authentic boss skins cannot be reconstructed from duplicated assets.",
+    "Unknown IronSpiderNew s.tga texture is left untouched.",
+    "2099 _099 names are texture identifiers with valid 2099 file URLs; no repair needed.",
+    "Catalogue transactions and progression require device testing."
+  ]
+}
