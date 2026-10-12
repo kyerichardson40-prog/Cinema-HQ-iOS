@@ -1,0 +1,31 @@
+name: Spider-Man boss and FPS diagnostics
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/spiderman-render-diagnostics.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: spiderman-readonly-diagnostics
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input report
+          gh api /repos/${{ github.repository }}/actions/artifacts/11752741124/zip > input/artifact.zip
+          unzip -q input/artifact.zip -d input
+      - run: python3 -m pip install capstone==5.0.6
+      - run: python3 .github/scripts/inspect-spiderman-render.py input report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spiderman-boss-fps-inspection
+          path: report/
+          retention-days: 14
