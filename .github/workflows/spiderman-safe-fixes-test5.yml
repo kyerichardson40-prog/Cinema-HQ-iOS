@@ -1,0 +1,38 @@
+name: Spider-Man Test5 safe fixes
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/spiderman-safe-fixes-test5.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: spiderman-patch-build
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download verified Test4 baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input output report
+          gh api /repos/${{ github.repository }}/actions/artifacts/11766701218/zip > input/artifact.zip
+          unzip -q input/artifact.zip -d input
+      - name: Patch and verify all original archive members
+        run: python3 .github/scripts/patch-safe-fixes-test5.py input/Spider-Man_Unlimited_v5.0.0_Test4_Tutorial_Exit.ipa output/Spider-Man_Unlimited_v5.0.0_Test5_Safe_Fixes.ipa report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Test5-verification
+          path: report/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Unlimited-Test5-Safe-Fixes-IPA
+          path: output/*.ipa
+          compression-level: 0
+          retention-days: 14
