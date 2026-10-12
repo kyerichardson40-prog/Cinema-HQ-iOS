@@ -27,11 +27,11 @@ jobs:
       - name: Install disassembler
         run: python3 -m pip install capstone==5.0.6
       - name: Inspect configuration and ARM64 initialization
-        run: python3 .github/scripts/inspect-spiderman-startup.py input/extracted report
+        run: python3 .github/scripts/inspect-spiderman-decoder.py input/extracted report
       - name: Upload small read-only report
         uses: actions/upload-artifact@v4
         with:
-          name: spiderman-startup-diagnostic-report
+          name: spiderman-feed-decoder-report
           path: report/
           retention-days: 14
           if-no-files-found: error
