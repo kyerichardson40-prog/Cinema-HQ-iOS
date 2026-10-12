@@ -1,0 +1,31 @@
+name: Spider-Man Test4 bug audit
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/spiderman-bug-audit.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: spiderman-readonly-diagnostics
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input report
+          gh api /repos/${{ github.repository }}/actions/artifacts/11766701218/zip > input/artifact.zip
+          unzip -q input/artifact.zip -d input
+      - run: python3 .github/scripts/audit-spiderman.py input report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Test4-bug-audit
+          path: report/
+          retention-days: 14
+          if-no-files-found: error
