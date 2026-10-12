@@ -1,0 +1,36 @@
+name: Spider-Man startup diagnostics 2
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/spiderman-startup-diagnostics.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: spiderman-readonly-diagnostics
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download existing Portal Test1 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input report
+          gh api /repos/${{ github.repository }}/actions/artifacts/11737460031/zip > input/artifact.zip
+          unzip -q input/artifact.zip -d input/extracted
+      - name: Install disassembler
+        run: python3 -m pip install capstone==5.0.6
+      - name: Inspect configuration and ARM64 initialization
+        run: python3 .github/scripts/inspect-spiderman-startup.py input/extracted report
+      - name: Upload small read-only report
+        uses: actions/upload-artifact@v4
+        with:
+          name: spiderman-startup-diagnostic-report
+          path: report/
+          retention-days: 14
+          if-no-files-found: error
