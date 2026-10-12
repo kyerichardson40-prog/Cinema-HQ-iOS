@@ -1,8 +1,8 @@
-name: Download Spider-Man IPA
+name: Build Spider-Man Portal Test 1
 on:
   push:
     branches: [download-spiderman-ipa]
-    paths: [.github/workflows/download-spiderman-ipa.yml]
+    paths: [.github/workflows/download-spiderman-ipa.yml, .github/scripts/patch-portal-test1.py]
 permissions:
   contents: read
 concurrency:
@@ -13,6 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Obtain fresh link and download IPA
         run: |
           python3 - <<'PY'
@@ -52,17 +55,12 @@ jobs:
           print("Size:", path.stat().st_size)
           print("SHA256:", hashlib.file_digest(path.open("rb"), "sha256").hexdigest())
           PY
-      - name: Split for artifact transfer
-        run: split -b 350M -d Spider-Man_Unlimited_v5.0.0.ipa ipa-part-
+      - name: Apply and validate portal test patch
+        run: python3 .github/scripts/patch-portal-test1.py Spider-Man_Unlimited_v5.0.0.ipa Spider-Man_Unlimited_v5.0.0_Portal_Test1.ipa
       - uses: actions/upload-artifact@v4
         with:
-          name: Spider-Man-IPA-part-00
-          path: ipa-part-00
+          name: Spider-Man-Portal-Test1-IPA
+          path: Spider-Man_Unlimited_v5.0.0_Portal_Test1.ipa
           compression-level: 0
-          retention-days: 3
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Spider-Man-IPA-part-01
-          path: ipa-part-01
-          compression-level: 0
-          retention-days: 3
+          retention-days: 14
+          if-no-files-found: error
