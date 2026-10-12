@@ -41,7 +41,7 @@ with zipfile.ZipFile(ipa) as z:
         for s in segs:
             if s['vm']<=addr<s['vm']+s['filesize']: return s['fileoff']+addr-s['vm']
         return None
-    md=Cs(CS_ARCH_ARM64,CS_MODE_LITTLE_ENDIAN);md.detail=True
+    md=Cs(CS_ARCH_ARM64,CS_MODE_LITTLE_ENDIAN);md.detail=True;md.skipdata=True
     def disasm(start,end):
         p=fileoff(start); return list(md.disasm(b[p:p+end-start],start)) if p is not None else []
     def function(addr):
@@ -59,6 +59,7 @@ with zipfile.ZipFile(ipa) as z:
                 strings.setdefault(term,[]).append(hex(addr-base));lookup[addr]=term
     refs=[]; textsec=next(s for s in sections if s['name']=='__text'); regs={}
     for ins in md.disasm(b[textsec['offset']:textsec['offset']+textsec['size']],textsec['addr']):
+        if ins.id==0: continue
         ops=ins.operands
         if ins.mnemonic=='adrp' and len(ops)==2: regs[ops[0].reg]=ops[1].imm
         elif ins.mnemonic=='adr' and len(ops)==2:
@@ -101,7 +102,7 @@ with zipfile.ZipFile(ipa) as z:
                 if isinstance(v,dict):
                     for k,x in v.items():
                         p=path+'/'+k
-                        if re.search(r'portal|recruit|tutorial|offline|placement',k,re.I):hits.append(dict(path=p,type=type(x).__name__,count=len(x) if isinstance(x,(dict,list)) else None))
+                        if re.search(r'portal|recruit|tutorial|offline|placement',k,re.I):hits.append(dict(path=p,type=type(x).__name__,boolean=x if isinstance(x,bool) else None,count=len(x) if isinstance(x,(dict,list)) else None))
                         walk(x,p)
                 elif isinstance(v,list):
                     for i,x in enumerate(v):walk(x,path+'/'+str(i))
