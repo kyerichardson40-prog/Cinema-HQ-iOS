@@ -1,3 +1,4 @@
+# Packaging verification supports both pointer and offset initializer sections.
 name: Spider-Man Test7 Dynamic Island safe area
 on:
   workflow_dispatch:
