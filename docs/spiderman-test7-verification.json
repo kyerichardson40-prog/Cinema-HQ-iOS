@@ -1,0 +1,25 @@
+{
+  "test": "Test7 Dynamic Island safe area",
+  "input_sha256": "92638beefa04de64a1a791a4acf0e4b3f6ea396c50399f2bd8882bf980f98d60",
+  "output_sha256": "8f6f5584284bc507520ad50ec0e0a0f7195b8b4cf12f516160f9d7ebd6cd05a9",
+  "binary_sha256": "7652c991b439019051c2d6bdf9e20c07841b5bc7a7dacf05bfcfaf335a5b703b",
+  "library_sha256": "277be21569bdfedfb2ace41890132d3bd29de21c58eee5fda45bedf87910157c",
+  "load_path": "@loader_path/Frameworks/SMUSafeArea.dylib",
+  "header_only_change": true,
+  "test6_instructions_preserved": true,
+  "all_existing_resources_unchanged": true,
+  "zip_crc_verified": true,
+  "library_dependencies": [
+    "/System/Library/Frameworks/UIKit.framework/UIKit",
+    "/System/Library/Frameworks/Foundation.framework/Foundation",
+    "/usr/lib/libobjc.A.dylib",
+    "/usr/lib/libSystem.B.dylib",
+    "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation"
+  ],
+  "library_constructor_verified": true,
+  "initializer_format": "S_INIT_FUNC_OFFSETS",
+  "geometry_tests": "Compiled shared C geometry tests passed on macOS before iOS adapter build.",
+  "save_files_modified": false,
+  "runtime_verified": false,
+  "behaviour": "Only MainGLView is fitted to the window safe area. Existing framebuffer layout and view-local touch handling are retained. No fixed device dimensions are used."
+}
