@@ -1,4 +1,4 @@
-# Use the iOS-supported vm_region_64 permission query.
+# Link against Flash built-ins without embedding duplicate runtime classes.
 name: Spider-Man Test9 persistent FOV and native UI
 on:
   workflow_dispatch:
@@ -30,9 +30,11 @@ jobs:
           PLAYER=$(find ffdec -iname '*playerglobal*.swc' | head -1)
           test -n "$PLAYER"
           for CLASS in SMUGameControls SMUHeaderControls; do
-            java -Dflexlib="$FLEXLIB" -jar "$MXMLC" -load-config= -library-path="$PLAYER" -target-player=10.0.0 -swf-version=10 -debug=false -optimize=true -default-size=640,960 -source-path=.github/scripts/native-ui -output="modules/$CLASS.swf" ".github/scripts/native-ui/$CLASS.as"
+            java -Dflexlib="$FLEXLIB" -jar "$MXMLC" -load-config= -external-library-path="$PLAYER" -target-player=10.0.0 -swf-version=10 -debug=false -optimize=true -default-size=640,960 -source-path=.github/scripts/native-ui -output="modules/$CLASS.swf" ".github/scripts/native-ui/$CLASS.as"
             java -Djava.awt.headless=true -jar ffdec/ffdec.jar -export script "modules/decompiled/$CLASS" "modules/$CLASS.swf"
           done
+      - name: Verify native AS3 module isolation
+        run: PYTHONPATH=.github/scripts/native-ui python3 .github/scripts/native-ui/verify_ui_modules.py modules
       - uses: actions/upload-artifact@v4
         with:
           name: Spider-Man-Test9-native-UI-modules
@@ -62,6 +64,7 @@ jobs:
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
           xcrun --sdk iphoneos clang++ -isysroot "$SDK" -target arm64-apple-ios14.0 -std=c++17 -Os -dynamiclib -fobjc-arc -Wall -Wextra -Werror -Wno-deprecated-declarations -framework UIKit -framework Foundation -framework CoreGraphics -install_name @loader_path/Frameworks/SMURuntime.dylib .github/scripts/runtime/SMURuntime.mm -o build/SMURuntime.dylib
           codesign --force --sign - build/SMURuntime.dylib
+          cp build/SMURuntime.dylib report/SMURuntime.dylib
           python3 -m pip install --quiet --target build/python-deps unicorn==2.1.4
       - name: Verify the compiled camera hook
         run: |
