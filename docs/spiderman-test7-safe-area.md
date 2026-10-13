@@ -1,0 +1,13 @@
+# Test7 safe-area layout
+
+The user confirmed Test6 clears the mission progression blocker and allows different missions. Test7 retains that baseline and addresses the reported Dynamic Island obstruction of the top UI bar.
+
+The game's AppDelegate creates MainGLView with screen bounds. GetWindowSizeAtScreenIndex (ARM64 0xe5365c) queries the rendering view's `bounds`. GenericView touch handlers call `locationInView:` with that same view (0xe56dec for touchesBegan). GenericGLView layoutSubviews (0xe56958) checks the drawable dimensions and invokes the existing framebuffer resize path. These observations support fitting the actual game view instead of translating only the rendered image.
+
+SMUSafeArea.dylib installs overrides exclusively on MainGLView for setFrame:, layoutSubviews, didMoveToWindow, and safeAreaInsetsDidChange. The previous implementations remain callable. The adapter reads the main window's safeAreaInsets, converts the window rectangle into the parent view's coordinates, and fits the game view into that safe rectangle. Using the window's margins avoids compounding insets after the view itself is already inside the safe area. Deliberately smaller frames, detached views, non-fullscreen parents, and external displays are left unchanged. Geometry is derived from the actual window; there is no fixed Dynamic Island/device offset.
+
+The expected appearance is a small unused margin above the game and at the home indicator, with the top bar fully below the hardware cutout. The entire game viewport is fitted, so the legacy engine may alter its aspect-ratio layout slightly. Test6 executable instructions and existing resource files are unchanged; only an ARM64 LC_LOAD_DYLIB command is added in verified unused header padding, together with the new library at Frameworks/SMUSafeArea.dylib. The load path is @loader_path relative for LiveContainer's guest-image loading.
+
+The build runs the shared C geometry code for portrait and landscape margins, zero margins, repeated layout calls, smaller frames, and invalid margins. It compiles the iOS ARM64 adapter with warnings treated as errors, verifies its initialization section and system dependencies, validates ZIP CRCs, and compares all existing resources to Test6. An initial packaging check was corrected to recognise Apple's S_INIT_FUNC_OFFSETS initializer representation and to verify that its offsets point into executable text.
+
+No game save files are modified. Runtime loading, actual safe-area margins, touch alignment, and 120 FPS on the iPhone must still be confirmed by the user after updating the IPA. The verification artifact records the output SHA256 and compile/archive results.
