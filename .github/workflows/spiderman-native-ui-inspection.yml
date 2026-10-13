@@ -1,4 +1,4 @@
-# Inspect the six native UI movies located through the package index.
+# Decompile native AS3 layout and pause scripts.
 name: Spider-Man native UI inspection
 on:
   workflow_dispatch:
@@ -24,6 +24,13 @@ jobs:
           gh api /repos/${{ github.repository }}/actions/artifacts/11815152546/zip > input/artifact.zip
           unzip -q input/artifact.zip -d input
       - run: python3 .github/scripts/inspect-native-ui.py input report
+      - name: Inspect ActionScript 3 layout
+        run: |
+          curl -fsSL https://github.com/jindrapetrik/jpexs-decompiler/releases/download/version26.3.0/ffdec_26.3.0.zip -o ffdec.zip
+          unzip -q ffdec.zip -d ffdec
+          for movie in Gameplay TopBar Main; do
+            java -Djava.awt.headless=true -jar ffdec/ffdec.jar -export script report/scripts/$movie report/$movie.swf
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: Spider-Man-native-UI-inspection
