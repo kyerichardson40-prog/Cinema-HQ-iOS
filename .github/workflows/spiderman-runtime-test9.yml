@@ -1,0 +1,83 @@
+name: Spider-Man Test9 persistent FOV and native UI
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/spiderman-runtime-test9.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: spiderman-patch-build
+  cancel-in-progress: false
+jobs:
+  native-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile independent native AS3 controls
+        run: |
+          mkdir -p sdk ffdec modules
+          curl -fsSL https://downloads.apache.org/flex/4.16.1/binaries/apache-flex-sdk-4.16.1-bin.tar.gz -o flex.tar.gz
+          tar -xzf flex.tar.gz -C sdk
+          curl -fsSL https://github.com/jindrapetrik/jpexs-decompiler/releases/download/version26.3.0/ffdec_26.3.0.zip -o ffdec.zip
+          unzip -q ffdec.zip -d ffdec
+          MXMLC=$(find sdk -path '*/lib/mxmlc.jar' | head -1)
+          test -n "$MXMLC"
+          FLEXLIB=$(dirname "$(dirname "$MXMLC")")/frameworks
+          PLAYER=$(find ffdec -iname '*playerglobal*.swc' | head -1)
+          test -n "$PLAYER"
+          for CLASS in SMUGameControls SMUHeaderControls; do
+            java -Dflexlib="$FLEXLIB" -jar "$MXMLC" -load-config= -library-path="$PLAYER" -target-player=10.0.0 -swf-version=10 -debug=false -optimize=true -default-size=640,960 -source-path=.github/scripts/native-ui -output="modules/$CLASS.swf" ".github/scripts/native-ui/$CLASS.as"
+            java -Djava.awt.headless=true -jar ffdec/ffdec.jar -export script "modules/decompiled/$CLASS" "modules/$CLASS.swf"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Test9-native-UI-modules
+          path: modules/
+          retention-days: 14
+  build:
+    needs: native-ui
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Spider-Man-Test9-native-UI-modules
+          path: modules
+      - name: Download the verified Test6 baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input build output report
+          gh api /repos/${{ github.repository }}/actions/artifacts/11778564738/zip > input/artifact.zip
+          unzip -q input/artifact.zip -d input
+      - name: Test frame policy and compile ARM64 runtime
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror .github/scripts/runtime/test_runtime_policy.c -lm -o build/test-runtime-policy
+          build/test-runtime-policy
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          xcrun --sdk iphoneos clang++ -isysroot "$SDK" -target arm64-apple-ios14.0 -std=c++17 -Os -dynamiclib -fobjc-arc -Wall -Wextra -Werror -Wno-deprecated-declarations -framework UIKit -framework Foundation -framework CoreGraphics -install_name @loader_path/Frameworks/SMURuntime.dylib .github/scripts/runtime/SMURuntime.mm -o build/SMURuntime.dylib
+          codesign --force --sign - build/SMURuntime.dylib
+          python3 -m pip install --quiet --target build/python-deps unicorn==2.1.4
+      - name: Verify the compiled camera hook
+        run: |
+          IPA=$(find input -name '*.ipa' -print -quit)
+          PYTHONPATH=build/python-deps python3 .github/scripts/runtime/verify_runtime_arm64.py "$IPA" build/SMURuntime.dylib report
+      - name: Inject native UI and package verified Test9 IPA
+        run: |
+          IPA=$(find input -name '*.ipa' -print -quit)
+          PYTHONPATH=build/python-deps:.github/scripts/native-ui python3 .github/scripts/patch-runtime-test9.py "$IPA" build/SMURuntime.dylib modules/SMUGameControls.swf modules/SMUHeaderControls.swf output/Spider-Man_Unlimited_v5.0.0_Test9_Native_UI_FOV.ipa report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Test9-Native-UI-FOV-IPA
+          path: output/*.ipa
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Spider-Man-Test9-verification
+          path: report/
+          retention-days: 30
