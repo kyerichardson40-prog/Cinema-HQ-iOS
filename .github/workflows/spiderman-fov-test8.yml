@@ -30,7 +30,7 @@ jobs:
       - name: Compile iOS ARM64 pause menu adapter
         run: |
           sdk_path=$(xcrun --sdk iphoneos --show-sdk-path)
-          xcrun --sdk iphoneos clang++ -std=c++17 -target arm64-apple-ios14.0 -isysroot "$sdk_path" -dynamiclib -fobjc-arc -Wall -Wextra -Werror -Wno-deprecated-declarations .github/scripts/fov/SMUFOV.mm -framework UIKit -framework Foundation -framework QuartzCore -install_name @loader_path/Frameworks/SMUFOV.dylib -o build/SMUFOV.dylib
+          xcrun --sdk iphoneos clang++ -std=c++17 -target arm64-apple-ios14.0 -isysroot "$sdk_path" -dynamiclib -fobjc-arc -Wall -Wextra -Werror -Wno-deprecated-declarations .github/scripts/fov/SMUFOV.mm -framework UIKit -framework Foundation -framework QuartzCore -framework CoreGraphics -install_name @loader_path/Frameworks/SMUFOV.dylib -o build/SMUFOV.dylib
           codesign --force --sign - build/SMUFOV.dylib
           otool -L build/SMUFOV.dylib > report/library-dependencies.txt
       - name: Install ARM64 native camera verifier
