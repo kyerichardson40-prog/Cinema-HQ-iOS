@@ -1,0 +1,60 @@
+{
+  "test": "Test8 pause menu FOV slider",
+  "input_sha256": "8f6f5584284bc507520ad50ec0e0a0f7195b8b4cf12f516160f9d7ebd6cd05a9",
+  "output_sha256": "24ad7feee01a4cc5b5cf4153046a6e2afbc9229e281183204d5d1c20d03c6a58",
+  "binary_sha256": "6e69f508a0c740d0e9339834bbd27d05dcdc5a23f57c0876f277d8ba495b7405",
+  "library_sha256": "2298245049229bc97d88d2b91b50ada19d587c762442f6366332a5b333c92730",
+  "load_path": "@loader_path/Frameworks/SMUFOV.dylib",
+  "header_only_change": true,
+  "test7_instructions_preserved": true,
+  "all_existing_resources_unchanged": true,
+  "zip_crc_verified": true,
+  "library_dependencies": [
+    "/System/Library/Frameworks/UIKit.framework/UIKit",
+    "/System/Library/Frameworks/Foundation.framework/Foundation",
+    "/System/Library/Frameworks/QuartzCore.framework/QuartzCore",
+    "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+    "/usr/lib/libobjc.A.dylib",
+    "/usr/lib/libc++.1.dylib",
+    "/usr/lib/libSystem.B.dylib",
+    "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation"
+  ],
+  "library_constructor_verified": true,
+  "initializer_format": "S_INIT_FUNC_OFFSETS",
+  "camera_policy_tests": "Compiled shared camera policy tests passed.",
+  "native_fov_setter_tests": [
+    {
+      "degrees": 45,
+      "native_fov_set": true,
+      "projection_dirty_set": true,
+      "near_far_and_other_fields_unchanged": true
+    },
+    {
+      "degrees": 60,
+      "native_fov_set": true,
+      "projection_dirty_set": true,
+      "near_far_and_other_fields_unchanged": true
+    },
+    {
+      "degrees": 75,
+      "native_fov_set": true,
+      "projection_dirty_set": true,
+      "near_far_and_other_fields_unchanged": true
+    },
+    {
+      "degrees": 90,
+      "native_fov_set": true,
+      "projection_dirty_set": true,
+      "near_far_and_other_fields_unchanged": true
+    },
+    {
+      "degrees": 100,
+      "native_fov_set": true,
+      "projection_dirty_set": true,
+      "near_far_and_other_fields_unchanged": true
+    }
+  ],
+  "save_files_modified": false,
+  "runtime_verified": false,
+  "behaviour": "45-100 degree vertical FOV slider appears only with the native pause panel. Uses native gameplay camera setter. Reset restores captured authored FOV. Setting saved under SMUFieldOfViewDegrees; game save files untouched."
+}
