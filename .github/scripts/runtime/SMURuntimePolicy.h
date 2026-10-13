@@ -14,7 +14,7 @@ static inline float SMUResolveFrameFOV(float nativeRadians,float degrees,bool ga
 typedef struct { uint8_t tag,flags,padding[6];uint64_t payload,object; } SMUValue;
 static inline uint32_t SMURol32(uint32_t v,unsigned bits) {return (v<<bits)|(v>>(32-bits));}
 static inline SMUValue SMUNumber(double number) {
-    SMUValue value={0};uint64_t bits;memcpy(&bits,&number,8);value.tag=2;
+    SMUValue value;memset(&value,0,sizeof(value));uint64_t bits;memcpy(&bits,&number,8);value.tag=2;
     value.payload=(uint64_t)(SMURol32((uint32_t)bits,5)^0x380838ba)|((uint64_t)(SMURol32((uint32_t)(bits>>32),5)^0x380838ba)<<32);return value;
 }
 static inline double SMUDecodeNumber(SMUValue value) {
