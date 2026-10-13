@@ -1,10 +1,15 @@
 #import <UIKit/UIKit.h>
+#import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 #import <mach-o/dyld.h>
 #import <mach-o/loader.h>
 #include <atomic>
 #include <cstring>
 #include "SMUFOVPolicy.h"
+
+@interface UIView (SMUGameGLSelectors)
+- (void)prepare;
+@end
 
 static uintptr_t GameBase;
 static void (*OriginalPrepare)(id,SEL);
