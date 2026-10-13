@@ -1,0 +1,52 @@
+name: Spider-Man Test8 pause menu FOV slider
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/spiderman-fov-test8.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: spiderman-patch-build
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Test7 baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input output report build
+          gh api /repos/${{ github.repository }}/actions/artifacts/11814243008/zip > input/artifact.zip
+          unzip -q input/artifact.zip -d input
+      - name: Test FOV state, clamp, repeat updates and reset
+        run: |
+          xcrun clang -Wall -Wextra -Werror .github/scripts/fov/test_fov_policy.c -o build/test-fov-policy
+          build/test-fov-policy
+      - name: Compile iOS ARM64 pause menu adapter
+        run: |
+          sdk_path=$(xcrun --sdk iphoneos --show-sdk-path)
+          xcrun --sdk iphoneos clang++ -std=c++17 -target arm64-apple-ios14.0 -isysroot "$sdk_path" -dynamiclib -fobjc-arc -Wall -Wextra -Werror -Wno-deprecated-declarations .github/scripts/fov/SMUFOV.mm -framework UIKit -framework Foundation -framework QuartzCore -install_name @loader_path/Frameworks/SMUFOV.dylib -o build/SMUFOV.dylib
+          codesign --force --sign - build/SMUFOV.dylib
+          otool -L build/SMUFOV.dylib > report/library-dependencies.txt
+      - name: Install ARM64 native camera verifier
+        run: python3 -m pip install --target build/python-deps unicorn==2.1.4
+      - name: Verify native camera setter and package IPA
+        env:
+          PYTHONPATH: build/python-deps
+        run: python3 .github/scripts/patch-fov-test8.py input/Spider-Man_Unlimited_v5.0.0_Test7_Safe_Area.ipa build/SMUFOV.dylib output/Spider-Man_Unlimited_v5.0.0_Test8_FOV_Slider.ipa report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Test8-verification
+          path: report/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Unlimited-Test8-FOV-Slider-IPA
+          path: output/*.ipa
+          compression-level: 0
+          retention-days: 14
