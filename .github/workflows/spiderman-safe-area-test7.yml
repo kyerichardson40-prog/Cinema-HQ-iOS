@@ -1,0 +1,48 @@
+name: Spider-Man Test7 Dynamic Island safe area
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/spiderman-safe-area-test7.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: spiderman-patch-build
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download confirmed Test6 baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input output report build
+          gh api /repos/${{ github.repository }}/actions/artifacts/11778564738/zip > input/artifact.zip
+          unzip -q input/artifact.zip -d input
+      - name: Test shared safe-area geometry
+        run: |
+          xcrun clang -Wall -Wextra -Werror .github/scripts/safe-area/test_safe_rect.c -framework CoreGraphics -o build/test-safe-rect
+          build/test-safe-rect
+      - name: Compile iOS ARM64 safe-area adapter
+        run: |
+          sdk_path=$(xcrun --sdk iphoneos --show-sdk-path)
+          xcrun --sdk iphoneos clang -target arm64-apple-ios14.0 -isysroot "$sdk_path" -dynamiclib -fobjc-arc -Wall -Wextra -Werror -Wno-deprecated-declarations .github/scripts/safe-area/SMUSafeArea.m -framework UIKit -framework Foundation -install_name @loader_path/Frameworks/SMUSafeArea.dylib -o build/SMUSafeArea.dylib
+          codesign --force --sign - build/SMUSafeArea.dylib
+          otool -L build/SMUSafeArea.dylib > report/library-dependencies.txt
+      - name: Package and verify all existing resources
+        run: python3 .github/scripts/patch-safe-area-test7.py input/Spider-Man_Unlimited_v5.0.0_Test6_Tutorial_Death_Exit.ipa build/SMUSafeArea.dylib output/Spider-Man_Unlimited_v5.0.0_Test7_Safe_Area.ipa report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Test7-verification
+          path: report/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-Unlimited-Test7-Safe-Area-IPA
+          path: output/*.ipa
+          compression-level: 0
+          retention-days: 14
