@@ -1,3 +1,4 @@
+# Include raw native UI package and indexed file headers.
 name: Spider-Man native UI inspection
 on:
   workflow_dispatch:
