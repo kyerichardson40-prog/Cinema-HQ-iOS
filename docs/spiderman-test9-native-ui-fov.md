@@ -18,6 +18,15 @@ The AS3 controls are independent classes added to the MainHUD and TopBarComplete
 
 ## Validation
 
-The shared C/C++ policy covers 14,400 changing authored updates, stock reset and passthrough cameras. ARM64 emulation executes the compiled runtime hook and the game's actual setter over 1,203 cases, checking persistent FOV, latest authored reset, constructor passthrough, other camera passthrough and unchanged aspect/near/far/other fields. The game's native numeric decoder also verifies the obfuscated AS numeric format for FOV values and safe-area fractions.
+The shared C/C++ policy covers 14,400 changing authored updates, stock reset and passthrough cameras. ARM64 emulation executes the compiled runtime hook and the game's actual setter over 1,204 cases, checking persistent FOV, latest authored reset, constructor passthrough, other camera passthrough and unchanged aspect/near/far/other fields. The game's native numeric decoder also verifies the obfuscated AS numeric format for FOV values and safe-area fractions.
 
 The build verifies that each new AS3 module contains only its own control class; it preserves original UI assets and scripts, prior native fixes, all other archive resources, and ZIP checksums. Runtime behavior and final UI placement still require testing in LiveContainer on the device.
+
+## Verified build
+
+- Run: https://github.com/kyerichardson40-prog/Cinema-HQ-iOS/actions/runs/38424047688
+- IPA artifact: `11828750845` (`Spider-Man-Test9-Native-UI-FOV-IPA`)
+- IPA SHA-256: `847b94f7e65ca791f391021a30154ff7bd66190390a31245da4594aad8b4ce7c`
+- Both jobs succeeded; camera hook, isolated AS3 classes and archive preservation checks passed.
+
+Import the IPA as an update to the existing Spider-Man entry and fully close LiveContainer before launching it. This keeps the existing data container while loading the replacement runtime. Device testing should confirm the pause slider layout, FOV after resume and during sustained gameplay, and header/HUD clearance.

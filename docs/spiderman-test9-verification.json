@@ -1,0 +1,141 @@
+{
+  "test": "Test9 persistent FOV and native UI",
+  "input_sha256": "92638beefa04de64a1a791a4acf0e4b3f6ea396c50399f2bd8882bf980f98d60",
+  "output_sha256": "847b94f7e65ca791f391021a30154ff7bd66190390a31245da4594aad8b4ce7c",
+  "binary_sha256": "ce8d061a5f8d8d90af9721ce149abd57a078ab54a600e3e83164bd0d19fcb96a",
+  "library_sha256": "b91f4c6980ee956cd319a92ba1710676f50e9568c1b12808fad1d23aead5be1b",
+  "load_path": "@loader_path/Frameworks/SMURuntime.dylib",
+  "header_only_change": true,
+  "test6_instructions_preserved": true,
+  "unchanged_resource_entries_verified": true,
+  "native_ui_injection": [
+    {
+      "class": "SMUGameControls",
+      "parent_sprite": 648,
+      "new_sprite": 649,
+      "depth": 375,
+      "original_abc_unchanged": true,
+      "original_artwork_and_animation_unchanged": true,
+      "before_crc32": 3130483125,
+      "after_crc32": 2036085825
+    },
+    {
+      "class": "SMUHeaderControls",
+      "parent_sprite": 706,
+      "new_sprite": 735,
+      "depth": 2,
+      "original_abc_unchanged": true,
+      "original_artwork_and_animation_unchanged": true,
+      "before_crc32": 1794855114,
+      "after_crc32": 3748147712
+    }
+  ],
+  "changed_entries": [
+    "Payload/Spiderman.app/Spiderman",
+    "Payload/Spiderman.app/data_final/file000011.dat",
+    "Payload/Spiderman.app/data_final/file000054.dat",
+    "Payload/Spiderman.app/data_final/file00000-plantext.dat"
+  ],
+  "whole_screen_safe_area_adapter_removed": true,
+  "zip_crc_verified": true,
+  "library_dependencies": [
+    "/System/Library/Frameworks/UIKit.framework/UIKit",
+    "/System/Library/Frameworks/Foundation.framework/Foundation",
+    "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+    "/usr/lib/libobjc.A.dylib",
+    "/usr/lib/libc++.1.dylib",
+    "/usr/lib/libSystem.B.dylib",
+    "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation"
+  ],
+  "library_constructor_verified": true,
+  "initializer_format": "S_INIT_FUNC_OFFSETS",
+  "camera_policy_tests": "14400 authored camera updates, passthrough cameras, reset and obfuscated AS numeric ABI passed.",
+  "native_fov_setter_tests": [
+    {
+      "degrees": 45,
+      "native_fov_set": true,
+      "projection_dirty_set": true,
+      "near_far_and_other_fields_unchanged": true
+    },
+    {
+      "degrees": 60,
+      "native_fov_set": true,
+      "projection_dirty_set": true,
+      "near_far_and_other_fields_unchanged": true
+    },
+    {
+      "degrees": 75,
+      "native_fov_set": true,
+      "projection_dirty_set": true,
+      "near_far_and_other_fields_unchanged": true
+    },
+    {
+      "degrees": 90,
+      "native_fov_set": true,
+      "projection_dirty_set": true,
+      "near_far_and_other_fields_unchanged": true
+    },
+    {
+      "degrees": 100,
+      "native_fov_set": true,
+      "projection_dirty_set": true,
+      "near_far_and_other_fields_unchanged": true
+    }
+  ],
+  "save_files_modified": false,
+  "runtime_verified": false,
+  "behaviour": "Overrides the exact per-frame gameplay FOV setter; native AS3 slider is a child of the native pause menu. Only HUD and menu header clips move for the Dynamic Island. Full-screen framebuffer restored. Preferences retained; game save files untouched.",
+  "compiled_camera_hook_tests": {
+    "compiled_arm64_hook_verified": true,
+    "native_setter_executed": true,
+    "tests": [
+      {
+        "degrees": 45,
+        "240_consecutive_gameplay_updates_passed": true
+      },
+      {
+        "degrees": 60,
+        "240_consecutive_gameplay_updates_passed": true
+      },
+      {
+        "degrees": 75,
+        "240_consecutive_gameplay_updates_passed": true
+      },
+      {
+        "degrees": 90,
+        "240_consecutive_gameplay_updates_passed": true
+      },
+      {
+        "degrees": 100,
+        "240_consecutive_gameplay_updates_passed": true
+      }
+    ],
+    "reset_uses_latest_authored_fov": true,
+    "constructor_and_other_camera_passthrough": true,
+    "aspect_near_far_other_fields_unchanged": true,
+    "imports_exercised": []
+  },
+  "as3_modules": [
+    {
+      "module": "SMUGameControls",
+      "only_new_control_class_embedded": true,
+      "existing_flash_runtime_reused": true,
+      "methods": [
+        "tick",
+        "drain"
+      ],
+      "bytes": 2666
+    },
+    {
+      "module": "SMUHeaderControls",
+      "only_new_control_class_embedded": true,
+      "existing_flash_runtime_reused": true,
+      "methods": [
+        "inset"
+      ],
+      "bytes": 1229
+    }
+  ],
+  "run_url": "https://github.com/kyerichardson40-prog/Cinema-HQ-iOS/actions/runs/38424047688",
+  "ipa_artifact_id": 11828750845
+}

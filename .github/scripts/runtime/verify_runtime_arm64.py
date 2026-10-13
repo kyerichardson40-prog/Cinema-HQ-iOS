@@ -69,5 +69,5 @@ def main():
   checks.append({'degrees':degrees,'240_consecutive_gameplay_updates_passed':True})
  authored=0.932;run(authored,90,0x22d464);assert abs(getf(lib+last)-authored)<0.00001
  run(authored,60,0x22d464);run(0.8,90,0x22cd2c);run(0.9,90,0x22d464,False)
- report.mkdir(parents=True,exist_ok=True);(report/'compiled-camera-hook-tests.json').write_text(json.dumps({'compiled_arm64_hook_verified':True,'native_setter_executed':True,'tests':checks,'reset_uses_latest_authored_fov':True,'constructor_and_other_camera_passthrough':True,'aspect_near_far_other_fields_unchanged':True,'imports_exercised':sorted(set(calls))},indent=2));print('Compiled ARM64 per-frame camera hook passed 1203 cases')
+ report.mkdir(parents=True,exist_ok=True);(report/'compiled-camera-hook-tests.json').write_text(json.dumps({'compiled_arm64_hook_verified':True,'native_setter_executed':True,'tests':checks,'reset_uses_latest_authored_fov':True,'constructor_and_other_camera_passthrough':True,'aspect_near_far_other_fields_unchanged':True,'imports_exercised':sorted(set(calls))},indent=2));print('Compiled ARM64 per-frame camera hook passed 1204 cases')
 if __name__=='__main__':main()
