@@ -1,0 +1,30 @@
+name: Spider-Man native UI inspection
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/spiderman-native-ui-inspection.yml'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: spiderman-patch-build
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input report
+          gh api /repos/${{ github.repository }}/actions/artifacts/11815152546/zip > input/artifact.zip
+          unzip -q input/artifact.zip -d input
+      - run: python3 .github/scripts/inspect-native-ui.py input report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spider-Man-native-UI-inspection
+          path: report/
+          retention-days: 14
