@@ -1,0 +1,54 @@
+name: NX18 iOS build check
+on:
+  push:
+    branches: [nx18-build-check]
+    paths: ['.github/workflows/nx18-build-check.yml']
+permissions:
+  contents: read
+jobs:
+  ios:
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - name: Select and check Xcode
+        shell: bash
+        run: |
+          sw_vers
+          find /Applications -maxdepth 1 -name 'Xcode*.app' -print
+          for app in /Applications/Xcode_27.3_beta.app /Applications/Xcode_27.3.app /Applications/Xcode_27.2.app; do
+            if [[ -d "$app/Contents/Developer" ]]; then
+              export DEVELOPER_DIR="$app/Contents/Developer"
+              break
+            fi
+          done
+          test -n "${DEVELOPER_DIR:-}"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
+      - name: Check Metal and Apple A20 compilation
+        shell: bash
+        run: |
+          if ! xcrun --sdk iphoneos metal --version; then
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+          xcrun --sdk iphoneos metal --version
+          printf 'int nx18_probe(void) { return 0; }\n' > "$RUNNER_TEMP/probe.c"
+          xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=27.3 -mcpu=apple-a20 -c "$RUNNER_TEMP/probe.c" -o "$RUNNER_TEMP/probe.o"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: kencalx/NX18
+          ref: b545929fc230dfe529aa922f6d21686e1bb69644
+          persist-credentials: false
+      - name: Build the NX18 iOS host with synthetic inputs
+        shell: bash
+        run: |
+          command -v xcodegen || brew install xcodegen
+          mkdir -p "$RUNNER_TEMP/nx18-logs"
+          GAME=010015100B514000 python3 dm/ios/tools/build_smoke.py --output "$RUNNER_TEMP/nx18-smoke" 2>&1 | tee "$RUNNER_TEMP/nx18-logs/ios-build.log"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: nx18-build-log
+          path: ${{ runner.temp }}/nx18-logs
+          if-no-files-found: ignore
+          retention-days: 1
