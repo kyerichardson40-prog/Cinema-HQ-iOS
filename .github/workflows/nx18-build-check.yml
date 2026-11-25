@@ -39,6 +39,12 @@ jobs:
           repository: kencalx/NX18
           ref: b545929fc230dfe529aa922f6d21686e1bb69644
           persist-credentials: false
+      - name: Match the deployment target for this synthetic build
+        shell: bash
+        run: |
+          if [[ "$(xcrun --sdk iphoneos --show-sdk-version)" == "27.2" ]]; then
+            python3 -c 'from pathlib import Path; p = Path("dm/ios/project.yml"); p.write_text(p.read_text().replace("iOS: \"27.3\"", "iOS: \"27.2\"", 1))'
+          fi
       - name: Build the NX18 iOS host with synthetic inputs
         shell: bash
         run: |
